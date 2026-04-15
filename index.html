@@ -193,6 +193,7 @@
 <script>
 // ─── State ────────────────────────────────────────────────────
 let model = 'haiku';
+let editingId = null;
 let decisions = [];
 let project = { name: '', desc: '' };
 let lastHTML = '';
@@ -331,6 +332,7 @@ function addDecision() {
 }
 
 function toggleDecision(id) {
+  if (editingId !== null) return;
   const d = decisions.find(d => d.id === id);
   if (d) { d.active = !d.active; autosave(); renderDecisions(); updateCostEstimate(); updatePromptPreview(); }
 }
@@ -346,6 +348,7 @@ function deleteDecision(id) {
 function startEdit(id, el) {
   const d = decisions.find(d => d.id === id);
   if (!d) return;
+  editingId = id;
   const input = document.createElement('input');
   input.type = 'text';
   input.value = d.text;
@@ -354,16 +357,22 @@ function startEdit(id, el) {
   input.focus();
   input.select();
   const commit = () => {
+    editingId = null;
     const val = input.value.trim();
     if (val) d.text = val;
     autosave();
     renderDecisions();
     updatePromptPreview();
   };
+  const cancel = () => {
+    editingId = null;
+    input.removeEventListener('blur', commit);
+    renderDecisions();
+  };
   input.addEventListener('blur', commit);
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') { input.removeEventListener('blur', commit); renderDecisions(); }
+    if (e.key === 'Escape') { cancel(); }
   });
 }
 
