@@ -289,7 +289,7 @@ Return only the HTML. No markdown, no explanation, no code fences.`;
 const DEFAULT_REFINE_PROMPT = `Refine the following Project Decision List. Apply these category definitions strictly:
 
 - entity: a data model the app works with (User, File, CV, Project, Tag). Named nouns.
-- flow: a user journey or process. Must include action gates — what triggers it, branch conditions, and outcomes. Format: "Trigger → step → [condition] outcome / [condition] outcome"
+- flow: a user journey or process. Must include action gates — what triggers it, branch conditions, and outcomes. Format: "Trigger → step → [condition] outcome / [invalid] outcome"
 - ui: a specific named interface component (UploadButton, FileCardGrid, PreviewPanel, SideNav, EmptyState, Toast). Not visual style, not vague descriptions — concrete component names.
 - constraint: a rule or limitation explicitly stated in the decisions. Do not invent new ones.
 
@@ -305,7 +305,26 @@ What not to do:
 - Do not add decisions not implied by what is already listed
 - Do not redesign — only clarify and complete
 
-Return: a brief note on each change made, then the full refined PDL grouped by category.`;
+Return two sections:
+
+1. CHANGES — a brief note on each change made
+
+2. REFINED PDL — the full refined list in this exact format (copy-paste ready):
+
+[ENTITY]
+- decision
+- decision
+
+[FLOW]
+- decision
+- decision
+
+[UI]
+- decision
+- decision
+
+[CONSTRAINT]
+- decision`;
 
 function projectToJSON() {
   return {
