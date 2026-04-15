@@ -195,6 +195,10 @@
           class="text-xs px-3 py-1 rounded text-gray-400 hover:bg-gray-200 transition">Source</button>
         <button id="view-analysis" onclick="setView('analysis')"
           class="text-xs px-3 py-1 rounded text-gray-400 hover:bg-gray-200 transition">Analysis</button>
+        <button id="view-history" onclick="setView('history')"
+          class="text-xs px-3 py-1 rounded text-gray-400 hover:bg-gray-200 transition">History</button>
+        <button id="save-render-btn" onclick="saveRender()"
+          class="hidden text-xs px-3 py-1 rounded text-gray-400 hover:bg-gray-200 transition">Save Render</button>
         <button onclick="copySource()"
           class="text-xs px-3 py-1 rounded text-gray-400 hover:bg-gray-200 transition">Copy HTML</button>
       </div>
@@ -217,6 +221,17 @@
     <div id="preview-source" class="hidden flex-1 p-4">
       <pre id="source-code"
         class="text-xs font-mono bg-white rounded-lg p-4 h-full overflow-auto border border-gray-200 text-gray-700 whitespace-pre-wrap"></pre>
+    </div>
+
+    <!-- History view -->
+    <div id="preview-history" class="hidden flex-1 p-4 overflow-y-auto bg-white">
+      <div id="history-empty" class="h-full flex flex-col items-center justify-center text-gray-300 gap-3">
+        <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p class="text-sm">No saved renders yet</p>
+      </div>
+      <div id="history-list" class="hidden space-y-2"></div>
     </div>
 
     <!-- Analysis view -->
@@ -593,7 +608,7 @@ function showTab(tab) {
 // ─── Preview views ────────────────────────────────────────────
 function setView(v) {
   activeView = v;
-  const views = ['render', 'source', 'analysis'];
+  const views = ['render', 'source', 'analysis', 'history'];
   views.forEach(name => {
     document.getElementById('preview-' + name).classList.toggle('hidden', name !== v);
     if (name === 'render') document.getElementById('preview-render').classList.toggle('flex', v === 'render');
@@ -601,6 +616,7 @@ function setView(v) {
     if (btn) btn.className = 'text-xs px-3 py-1 rounded font-medium transition ' +
       (name === v ? 'bg-gray-100 text-gray-600' : 'text-gray-400 hover:bg-gray-200');
   });
+  if (v === 'history') loadHistory();
 }
 
 function copySource() {
@@ -663,6 +679,7 @@ function renderPreview(html) {
   const frame = document.getElementById('preview-frame');
   frame.classList.remove('hidden');
   frame.srcdoc = html;
+  document.getElementById('save-render-btn').classList.remove('hidden');
   if (activeView !== 'render') setView('render');
 }
 
@@ -746,6 +763,85 @@ function showError(msg) {
 
 function hideError() {
   document.getElementById('error-msg').classList.add('hidden');
+}
+
+// ─── Renders ─────────────────────────────────────────────────
+function projectSlug() {
+  return (document.getElementById('project-name').value.trim() || 'unnamed')
+    .replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+}
+
+async function saveRender() {
+  const btn = document.getElementById('save-render-btn');
+  btn.textContent = 'Saving…';
+  try {
+    const res = await fetch(`/api/renders/${projectSlug()}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ html: lastHTML })
+    });
+    if (!res.ok) throw new Error('Save failed');
+    btn.textContent = 'Saved!';
+    setTimeout(() => { btn.textContent = 'Save Render'; }, 1500);
+  } catch(e) {
+    btn.textContent = 'Save Render';
+    showError(e.message);
+  }
+}
+
+async function loadHistory() {
+  const slug = projectSlug();
+  const emptyEl = document.getElementById('history-empty');
+  const listEl  = document.getElementById('history-list');
+  try {
+    const res  = await fetch(`/api/renders/${slug}`);
+    const meta = await res.json();
+    if (!meta.length) { emptyEl.classList.remove('hidden'); listEl.classList.add('hidden'); return; }
+    emptyEl.classList.add('hidden');
+    listEl.classList.remove('hidden');
+    listEl.innerHTML = meta.map(r => {
+      const d = new Date(r.savedAt);
+      const label = d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) +
+                    ' ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+      const ratingClass = r.rating === 'good' ? 'text-green-600 font-semibold' :
+                          r.rating === 'bad'  ? 'text-red-500 font-semibold' : 'text-gray-400';
+      return `<div class="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50 transition group">
+        <button onclick="viewRender('${slug}','${r.id}')"
+          class="flex-1 text-left text-sm text-gray-700 font-mono">${label}</button>
+        <span class="${ratingClass} text-xs w-12 text-center">
+          ${r.rating === 'good' ? 'good' : r.rating === 'bad' ? 'bad' : '—'}
+        </span>
+        <button onclick="rateRender('${slug}','${r.id}','good')" title="Good"
+          class="text-xs px-2 py-1 rounded border border-gray-200 hover:border-green-400 hover:text-green-600 transition ${r.rating==='good'?'border-green-400 text-green-600':'text-gray-400'}">✓</button>
+        <button onclick="rateRender('${slug}','${r.id}','bad')" title="Bad"
+          class="text-xs px-2 py-1 rounded border border-gray-200 hover:border-red-400 hover:text-red-500 transition ${r.rating==='bad'?'border-red-400 text-red-500':'text-gray-400'}">✕</button>
+        <button onclick="deleteRender('${slug}','${r.id}')" title="Delete"
+          class="text-xs px-2 py-1 rounded border border-gray-200 hover:border-red-300 hover:text-red-400 transition text-gray-300 opacity-0 group-hover:opacity-100">del</button>
+      </div>`;
+    }).join('');
+  } catch(e) { /* server not running */ }
+}
+
+async function viewRender(slug, id) {
+  const res  = await fetch(`/api/renders/${slug}/${id}`);
+  const html = await res.text();
+  lastHTML = html;
+  document.getElementById('source-code').textContent = html;
+  renderPreview(html);
+}
+
+async function rateRender(slug, id, rating) {
+  await fetch(`/api/renders/${slug}/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ rating })
+  });
+  loadHistory();
+}
+
+async function deleteRender(slug, id) {
+  await fetch(`/api/renders/${slug}/${id}`, { method: 'DELETE' });
+  loadHistory();
 }
 
 // ─── Init ─────────────────────────────────────────────────────

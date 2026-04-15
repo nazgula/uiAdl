@@ -3,4 +3,5 @@ config.json
 .DS_Store
 node_modules/
 projects/
+renders/
 __pycache__/
