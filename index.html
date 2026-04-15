@@ -60,6 +60,16 @@
   <!-- Left panel: PDL Editor -->
   <section class="w-[420px] min-w-[340px] flex flex-col border-r border-gray-200 bg-white">
 
+    <!-- Project meta -->
+    <div class="px-4 pt-4 pb-3 border-b border-gray-100 space-y-2">
+      <input id="project-name" type="text" placeholder="Project name"
+        class="w-full text-sm font-semibold border border-gray-200 rounded-md px-3 py-1.5 bg-white text-gray-800 placeholder-gray-300"
+        oninput="saveProject()" />
+      <textarea id="project-desc" rows="2" placeholder="Short project description (optional)"
+        class="w-full text-xs border border-gray-200 rounded-md px-3 py-1.5 bg-white text-gray-600 placeholder-gray-300 resize-none"
+        oninput="saveProject(); updatePromptPreview()"></textarea>
+    </div>
+
     <!-- Tabs -->
     <div class="flex border-b border-gray-200 px-4 pt-2 gap-4">
       <button onclick="showTab('decisions')" id="tab-decisions"
@@ -165,6 +175,7 @@
 let apiKey = null;
 let model = 'haiku';
 let decisions = JSON.parse(localStorage.getItem('pdl_decisions') || '[]');
+let project = JSON.parse(localStorage.getItem('pdl_project') || '{"name":"","desc":""}');
 let lastHTML = '';
 let activeView = 'render';
 let activeTab = 'decisions';
@@ -236,6 +247,12 @@ function saveDecisions() {
   localStorage.setItem('pdl_decisions', JSON.stringify(decisions));
 }
 
+function saveProject() {
+  project.name = document.getElementById('project-name').value;
+  project.desc = document.getElementById('project-desc').value;
+  localStorage.setItem('pdl_project', JSON.stringify(project));
+}
+
 function addDecision() {
   const text = document.getElementById('new-text').value.trim();
   if (!text) return;
@@ -259,6 +276,35 @@ function deleteDecision(id) {
   renderDecisions();
   updateCostEstimate();
   updatePromptPreview();
+}
+
+function startEdit(id, el) {
+  const d = decisions.find(d => d.id === id);
+  if (!d) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = d.text;
+  input.className = 'text-sm flex-1 border border-indigo-300 rounded px-1 py-0 outline-none w-full';
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const val = input.value.trim();
+    if (val) d.text = val;
+    saveDecisions();
+    renderDecisions();
+    updatePromptPreview();
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.removeEventListener('blur', commit); renderDecisions(); }
+  });
+}
+
+function changeCategory(id, newCat) {
+  const d = decisions.find(d => d.id === id);
+  if (d) { d.category = newCat; saveDecisions(); renderDecisions(); updatePromptPreview(); }
 }
 
 function clearAll() {
@@ -292,8 +338,15 @@ function renderDecisions() {
              onclick="toggleDecision(${d.id})">
           <input type="checkbox" ${d.active ? 'checked' : ''} onclick="event.stopPropagation();toggleDecision(${d.id})"
             class="w-3.5 h-3.5 rounded accent-indigo-600 cursor-pointer flex-shrink-0" />
-          <span class="text-sm flex-1 ${d.active ? 'text-gray-800' : 'text-gray-400 line-through'}">${escHtml(d.text)}</span>
-          <span class="text-xs px-1.5 py-0.5 rounded-full font-medium category-${cat} flex-shrink-0">${cat}</span>
+          <span class="text-sm flex-1 ${d.active ? 'text-gray-800' : 'text-gray-400 line-through'}"
+            ondblclick="event.stopPropagation();startEdit(${d.id}, this)"
+            title="Double-click to edit">${escHtml(d.text)}</span>
+          <select class="delete-btn text-xs border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-600 cursor-pointer"
+            onclick="event.stopPropagation()" onchange="changeCategory(${d.id}, this.value)">
+            ${['entity','flow','ui','constraint'].map(c =>
+              `<option value="${c}" ${c === cat ? 'selected' : ''}>${c}</option>`
+            ).join('')}
+          </select>
           <button class="delete-btn text-gray-300 hover:text-red-400 transition flex-shrink-0"
             onclick="event.stopPropagation();deleteDecision(${d.id})" title="Delete">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -313,7 +366,15 @@ function escHtml(str) {
 function buildFullPrompt() {
   const userPrompt = document.getElementById('prompt-text').value.trim();
   const active = decisions.filter(d => d.active);
-  if (!active.length) return userPrompt;
+
+  const name = project.name.trim();
+  const desc = project.desc.trim();
+  let header = '';
+  if (name) header += `## Project: ${name}\n`;
+  if (desc) header += `${desc}\n`;
+  if (header) header += '\n';
+
+  if (!active.length) return header + userPrompt;
 
   const grouped = ['entity','flow','ui','constraint'].map(cat => {
     const items = active.filter(d => d.category === cat);
@@ -321,7 +382,7 @@ function buildFullPrompt() {
     return `[${cat.toUpperCase()}]\n${items.map(d => '- ' + d.text).join('\n')}`;
   }).filter(Boolean).join('\n\n');
 
-  return `${userPrompt}\n\n## Active Project Decisions\n\n${grouped}`;
+  return `${header}${userPrompt}\n\n## Active Project Decisions\n\n${grouped}`;
 }
 
 function updatePromptPreview() {
@@ -449,6 +510,8 @@ function hideError() {
 }
 
 // ─── Init ─────────────────────────────────────────────────────
+document.getElementById('project-name').value = project.name;
+document.getElementById('project-desc').value = project.desc;
 renderDecisions();
 updatePromptPreview();
 </script>
