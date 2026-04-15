@@ -22,6 +22,21 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
 
+<!-- ─── Load from URL modal ────────────────────────────────── -->
+<div id="url-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+  <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4 space-y-4">
+    <h2 class="font-semibold text-gray-800">Load project from URL</h2>
+    <input id="url-input" type="url" placeholder="https://…/project.json"
+      class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2" />
+    <p class="text-xs text-gray-400">Paste a link to a raw JSON project file (e.g. a GitHub Gist raw URL).</p>
+    <div class="flex gap-2 justify-end">
+      <button onclick="closeUrlModal()" class="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button onclick="loadFromUrl()" class="text-sm px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium">Load</button>
+    </div>
+    <p id="url-error" class="text-xs text-red-500 hidden"></p>
+  </div>
+</div>
+
 <!-- ─── Header ─────────────────────────────────────────────── -->
 <header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10">
   <div class="flex items-center gap-3">
@@ -29,15 +44,20 @@
     <span class="text-gray-400 text-sm">Project Decision List</span>
   </div>
   <div class="flex items-center gap-3">
-    <!-- API Key loader -->
-    <div id="key-status" class="flex items-center gap-2">
-      <span id="key-indicator" class="w-2 h-2 rounded-full bg-red-400"></span>
-      <span id="key-label" class="text-xs text-gray-500">No API key</span>
-      <label class="cursor-pointer text-xs text-indigo-600 hover:text-indigo-800 font-medium border border-indigo-200 rounded px-2 py-1 hover:bg-indigo-50 transition">
-        Load config
-        <input type="file" id="config-file" accept=".json" class="hidden" />
+    <!-- Project actions -->
+    <div class="flex items-center gap-1">
+      <button onclick="saveToFile()"
+        class="text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition font-medium">
+        Save
+      </button>
+      <label class="cursor-pointer text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition font-medium">
+        Load file
+        <input type="file" id="load-file" accept=".json" class="hidden" />
       </label>
-      <button id="clear-key" class="text-xs text-gray-400 hover:text-red-500 transition hidden">clear</button>
+      <button onclick="openUrlModal()"
+        class="text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition font-medium">
+        Load URL
+      </button>
     </div>
     <!-- Model switcher -->
     <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
@@ -64,10 +84,10 @@
     <div class="px-4 pt-4 pb-3 border-b border-gray-100 space-y-2">
       <input id="project-name" type="text" placeholder="Project name"
         class="w-full text-sm font-semibold border border-gray-200 rounded-md px-3 py-1.5 bg-white text-gray-800 placeholder-gray-300"
-        oninput="saveProject()" />
+        oninput="autosave()" />
       <textarea id="project-desc" rows="2" placeholder="Short project description (optional)"
         class="w-full text-xs border border-gray-200 rounded-md px-3 py-1.5 bg-white text-gray-600 placeholder-gray-300 resize-none"
-        oninput="saveProject(); updatePromptPreview()"></textarea>
+        oninput="autosave(); updatePromptPreview()"></textarea>
     </div>
 
     <!-- Tabs -->
@@ -113,7 +133,7 @@
       <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Generation prompt</label>
       <textarea id="prompt-text" rows="6"
         class="text-sm border border-gray-200 rounded-lg p-3 resize-none flex-1"
-        placeholder="Describe what to generate. E.g.: Generate a responsive signup form UI based on these decisions.">Generate a UI mockup based on these project decisions. Return only valid HTML with inline CSS — no markdown, no explanations, no code fences. The output will be rendered directly in a browser iframe.</textarea>
+        placeholder="Describe what to generate.">Generate a UI mockup based on these project decisions. Return only valid HTML with inline CSS — no markdown, no explanations, no code fences. The output will be rendered directly in a browser iframe.</textarea>
       <div class="space-y-2">
         <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Preview of what will be sent</label>
         <div id="prompt-preview"
@@ -172,50 +192,107 @@
 
 <script>
 // ─── State ────────────────────────────────────────────────────
-let apiKey = null;
 let model = 'haiku';
-let decisions = JSON.parse(localStorage.getItem('pdl_decisions') || '[]');
-let project = JSON.parse(localStorage.getItem('pdl_project') || '{"name":"","desc":""}');
+let decisions = [];
+let project = { name: '', desc: '' };
 let lastHTML = '';
 let activeView = 'render';
 let activeTab = 'decisions';
 
 const MODELS = {
-  haiku:  { id: 'claude-haiku-4-5-20251001',       inputPer1M: 0.80,  outputPer1M: 4.00 },
-  sonnet: { id: 'claude-sonnet-4-6', inputPer1M: 3.00, outputPer1M: 15.00 }
+  haiku:  { id: 'claude-haiku-4-5-20251001', inputPer1M: 0.80,  outputPer1M: 4.00 },
+  sonnet: { id: 'claude-sonnet-4-6',         inputPer1M: 3.00,  outputPer1M: 15.00 }
 };
 
-// ─── API Key loading ──────────────────────────────────────────
-document.getElementById('config-file').addEventListener('change', function(e) {
+// ─── Project serialization ────────────────────────────────────
+function projectToJSON() {
+  return {
+    name: document.getElementById('project-name').value,
+    desc: document.getElementById('project-desc').value,
+    decisions
+  };
+}
+
+function loadProjectData(data) {
+  project = { name: data.name || '', desc: data.desc || '' };
+  decisions = data.decisions || [];
+  document.getElementById('project-name').value = project.name;
+  document.getElementById('project-desc').value = project.desc;
+  autosave();
+  renderDecisions();
+  updateCostEstimate();
+  updatePromptPreview();
+}
+
+// ─── Autosave to localStorage ─────────────────────────────────
+function autosave() {
+  project.name = document.getElementById('project-name').value;
+  project.desc = document.getElementById('project-desc').value;
+  localStorage.setItem('pdl_state', JSON.stringify(projectToJSON()));
+}
+
+// ─── Save to file ─────────────────────────────────────────────
+function saveToFile() {
+  const data = projectToJSON();
+  const name = (data.name || 'project').replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ─── Load from file ───────────────────────────────────────────
+document.getElementById('load-file').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = function(ev) {
     try {
-      const cfg = JSON.parse(ev.target.result);
-      if (!cfg.apiKey) throw new Error('No "apiKey" field found in JSON');
-      apiKey = cfg.apiKey;
-      setKeyUI(true);
+      loadProjectData(JSON.parse(ev.target.result));
     } catch(err) {
-      showError('Config error: ' + err.message);
+      showError('Could not parse file: ' + err.message);
     }
   };
   reader.readAsText(file);
-  // Reset input so same file can be re-loaded
   e.target.value = '';
 });
 
-document.getElementById('clear-key').addEventListener('click', () => {
-  apiKey = null;
-  setKeyUI(false);
-});
-
-function setKeyUI(loaded) {
-  document.getElementById('key-indicator').className =
-    'w-2 h-2 rounded-full ' + (loaded ? 'bg-green-400' : 'bg-red-400');
-  document.getElementById('key-label').textContent = loaded ? 'API key loaded' : 'No API key';
-  document.getElementById('clear-key').classList.toggle('hidden', !loaded);
+// ─── Load from URL ────────────────────────────────────────────
+function openUrlModal() {
+  document.getElementById('url-modal').classList.remove('hidden');
+  document.getElementById('url-input').focus();
 }
+function closeUrlModal() {
+  document.getElementById('url-modal').classList.add('hidden');
+  document.getElementById('url-input').value = '';
+  document.getElementById('url-error').classList.add('hidden');
+}
+async function loadFromUrl() {
+  const url = document.getElementById('url-input').value.trim();
+  if (!url) return;
+  const errEl = document.getElementById('url-error');
+  errEl.classList.add('hidden');
+  try {
+    const res = await fetch('/api/load-url', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load');
+    loadProjectData(data);
+    closeUrlModal();
+  } catch(err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+  }
+}
+document.getElementById('url-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') loadFromUrl();
+  if (e.key === 'Escape') closeUrlModal();
+});
 
 // ─── Model switcher ───────────────────────────────────────────
 function setModel(m) {
@@ -232,9 +309,7 @@ function setModel(m) {
 function updateCostEstimate() {
   const activeCount = decisions.filter(d => d.active).length;
   if (activeCount === 0) { document.getElementById('cost-badge').classList.add('hidden'); return; }
-  const prompt = buildFullPrompt();
-  // rough: 1 token ≈ 4 chars; output ~800 tokens
-  const inputTokens = Math.ceil(prompt.length / 4);
+  const inputTokens = Math.ceil(buildFullPrompt().length / 4);
   const outputTokens = 800;
   const m = MODELS[model];
   const cost = (inputTokens / 1e6 * m.inputPer1M) + (outputTokens / 1e6 * m.outputPer1M);
@@ -243,23 +318,13 @@ function updateCostEstimate() {
 }
 
 // ─── Decisions ────────────────────────────────────────────────
-function saveDecisions() {
-  localStorage.setItem('pdl_decisions', JSON.stringify(decisions));
-}
-
-function saveProject() {
-  project.name = document.getElementById('project-name').value;
-  project.desc = document.getElementById('project-desc').value;
-  localStorage.setItem('pdl_project', JSON.stringify(project));
-}
-
 function addDecision() {
   const text = document.getElementById('new-text').value.trim();
   if (!text) return;
   const cat = document.getElementById('new-category').value;
   decisions.push({ id: Date.now(), text, category: cat, active: true });
   document.getElementById('new-text').value = '';
-  saveDecisions();
+  autosave();
   renderDecisions();
   updateCostEstimate();
   updatePromptPreview();
@@ -267,12 +332,12 @@ function addDecision() {
 
 function toggleDecision(id) {
   const d = decisions.find(d => d.id === id);
-  if (d) { d.active = !d.active; saveDecisions(); renderDecisions(); updateCostEstimate(); updatePromptPreview(); }
+  if (d) { d.active = !d.active; autosave(); renderDecisions(); updateCostEstimate(); updatePromptPreview(); }
 }
 
 function deleteDecision(id) {
   decisions = decisions.filter(d => d.id !== id);
-  saveDecisions();
+  autosave();
   renderDecisions();
   updateCostEstimate();
   updatePromptPreview();
@@ -291,7 +356,7 @@ function startEdit(id, el) {
   const commit = () => {
     const val = input.value.trim();
     if (val) d.text = val;
-    saveDecisions();
+    autosave();
     renderDecisions();
     updatePromptPreview();
   };
@@ -304,13 +369,13 @@ function startEdit(id, el) {
 
 function changeCategory(id, newCat) {
   const d = decisions.find(d => d.id === id);
-  if (d) { d.category = newCat; saveDecisions(); renderDecisions(); updatePromptPreview(); }
+  if (d) { d.category = newCat; autosave(); renderDecisions(); updatePromptPreview(); }
 }
 
 function clearAll() {
   if (!decisions.length || !confirm('Clear all decisions?')) return;
   decisions = [];
-  saveDecisions();
+  autosave();
   renderDecisions();
   updateCostEstimate();
   updatePromptPreview();
@@ -366,9 +431,9 @@ function escHtml(str) {
 function buildFullPrompt() {
   const userPrompt = document.getElementById('prompt-text').value.trim();
   const active = decisions.filter(d => d.active);
+  const name = document.getElementById('project-name').value.trim();
+  const desc = document.getElementById('project-desc').value.trim();
 
-  const name = project.name.trim();
-  const desc = project.desc.trim();
   let header = '';
   if (name) header += `## Project: ${name}\n`;
   if (desc) header += `${desc}\n`;
@@ -430,47 +495,33 @@ function copySource() {
 
 // ─── Generate ─────────────────────────────────────────────────
 async function generate() {
-  if (!apiKey) { showError('Load your config.json first (top right).'); return; }
   const activeDecisions = decisions.filter(d => d.active);
   if (!activeDecisions.length) { showError('No active decisions. Add and enable some first.'); return; }
 
   setLoading(true);
   hideError();
 
-  const fullPrompt = buildFullPrompt();
-
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/generate', {
       method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-        'anthropic-dangerous-allow-browser': 'true'
-      },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         model: MODELS[model].id,
         max_tokens: 4096,
-        messages: [{ role: 'user', content: fullPrompt }]
+        messages: [{ role: 'user', content: buildFullPrompt() }]
       })
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err?.error?.message || `API error ${res.status}`);
-    }
-
     const data = await res.json();
-    let html = data.content?.[0]?.text || '';
+    if (!res.ok) throw new Error(data.error || `API error ${res.status}`);
 
-    // Strip markdown code fences if model wrapped output anyway
+    let html = data.content?.[0]?.text || '';
     html = html.replace(/^```(?:html)?\n?/i, '').replace(/\n?```$/i, '').trim();
 
     lastHTML = html;
     renderPreview(html);
     document.getElementById('source-code').textContent = html;
 
-    // Show actual cost
     const inTok  = data.usage?.input_tokens  || 0;
     const outTok = data.usage?.output_tokens || 0;
     const m = MODELS[model];
@@ -510,9 +561,10 @@ function hideError() {
 }
 
 // ─── Init ─────────────────────────────────────────────────────
-document.getElementById('project-name').value = project.name;
-document.getElementById('project-desc').value = project.desc;
-renderDecisions();
+const saved = localStorage.getItem('pdl_state');
+if (saved) {
+  try { loadProjectData(JSON.parse(saved)); } catch(e) {}
+}
 updatePromptPreview();
 </script>
 </body>
