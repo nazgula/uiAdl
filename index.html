@@ -84,7 +84,7 @@
     <div class="px-4 pt-4 pb-3 border-b border-gray-100 space-y-2">
       <input id="project-name" type="text" placeholder="Project name"
         class="w-full text-sm font-semibold border border-gray-200 rounded-md px-3 py-1.5 bg-white text-gray-800 placeholder-gray-300"
-        oninput="autosave()" />
+        oninput="autosave(); updatePromptPreview()" />
       <textarea id="project-desc" rows="2" placeholder="Short project description (optional)"
         class="w-full text-xs border border-gray-200 rounded-md px-3 py-1.5 bg-white text-gray-600 placeholder-gray-300 resize-none"
         oninput="autosave(); updatePromptPreview()"></textarea>
@@ -403,9 +403,8 @@ function renderDecisions() {
              onclick="toggleDecision(${d.id})">
           <input type="checkbox" ${d.active ? 'checked' : ''} onclick="event.stopPropagation();toggleDecision(${d.id})"
             class="w-3.5 h-3.5 rounded accent-indigo-600 cursor-pointer flex-shrink-0" />
-          <span class="text-sm flex-1 ${d.active ? 'text-gray-800' : 'text-gray-400 line-through'}"
-            ondblclick="event.stopPropagation();startEdit(${d.id}, this)"
-            title="Double-click to edit">${escHtml(d.text)}</span>
+          <span class="text-sm flex-1 ${d.active ? 'text-gray-800' : 'text-gray-400 line-through'} hover:text-indigo-600 cursor-text"
+            onclick="event.stopPropagation();startEdit(${d.id}, this)">${escHtml(d.text)}</span>
           <select class="delete-btn text-xs border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-600 cursor-pointer"
             onclick="event.stopPropagation()" onchange="changeCategory(${d.id}, this.value)">
             ${['entity','flow','ui','constraint'].map(c =>
