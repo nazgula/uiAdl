@@ -141,9 +141,12 @@
         placeholder="Describe what to generate."
         oninput="autosave(); updatePromptPreview()"></textarea>
       <div class="space-y-2">
-        <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Preview of what will be sent</label>
-        <div id="prompt-preview"
-          class="text-xs font-mono bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto whitespace-pre-wrap text-gray-600"></div>
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">What will be sent</label>
+          <button onclick="updatePromptPreview()" class="text-xs text-gray-400 hover:text-indigo-500 transition">rebuild</button>
+        </div>
+        <textarea id="prompt-preview" rows="8"
+          class="text-xs font-mono bg-gray-50 border border-gray-200 rounded-lg p-3 w-full resize-none text-gray-600"></textarea>
       </div>
     </div>
 
@@ -551,7 +554,7 @@ function buildFullPrompt() {
 }
 
 function updatePromptPreview() {
-  document.getElementById('prompt-preview').textContent = buildFullPrompt();
+  document.getElementById('prompt-preview').value = buildFullPrompt();
 }
 
 function resetPrompt(which) {
@@ -616,7 +619,7 @@ async function generate() {
       body: JSON.stringify({
         model: MODELS[model].id,
         max_tokens: 4096,
-        messages: [{ role: 'user', content: buildFullPrompt() }]
+        messages: [{ role: 'user', content: document.getElementById('prompt-preview').value.trim() || buildFullPrompt() }]
       })
     });
 
