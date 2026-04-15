@@ -132,7 +132,10 @@
 
     <!-- Gen Prompt tab -->
     <div id="panel-prompt" class="hidden flex-col flex-1 p-4 gap-3">
-      <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Generation prompt</label>
+      <div class="flex items-center justify-between">
+        <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Generation prompt</label>
+        <button onclick="resetPrompt('gen')" class="text-xs text-gray-400 hover:text-indigo-500 transition">reset to default</button>
+      </div>
       <textarea id="prompt-text" rows="6"
         class="text-sm border border-gray-200 rounded-lg p-3 resize-none flex-1"
         placeholder="Describe what to generate."
@@ -146,11 +149,14 @@
 
     <!-- Refine Prompt tab -->
     <div id="panel-refine" class="hidden flex-col flex-1 p-4 gap-3">
-      <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Refine prompt</label>
-      <textarea id="refine-prompt-text" rows="12"
+      <div class="flex items-center justify-between">
+        <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Refine prompt</label>
+        <button onclick="resetPrompt('refine')" class="text-xs text-gray-400 hover:text-indigo-500 transition">reset to default</button>
+      </div>
+      <textarea id="refine-prompt-text"
         class="text-sm border border-gray-200 rounded-lg p-3 resize-none flex-1"
         oninput="autosave()"></textarea>
-      <p class="text-xs text-gray-400">Sent with your full PDL. Model returns analysis + suggested refined list as text.</p>
+      <p class="text-xs text-gray-400">Sent with your full PDL (all decisions, active and inactive). Returns analysis + refined list as text.</p>
     </div>
 
     <!-- Action buttons -->
@@ -240,23 +246,40 @@ const MODELS = {
 };
 
 // ─── Project serialization ────────────────────────────────────
-const DEFAULT_PROMPT = `Generate a UI mockup based on these project decisions. Return only valid HTML with inline CSS — no markdown, no explanations, no code fences. The output will be rendered directly in a browser iframe.`;
+const DEFAULT_PROMPT = `Generate a complete, interactive HTML mockup based on these project decisions.
 
-const DEFAULT_REFINE_PROMPT = `Analyze this Project Decision List and suggest a refined version.
+Requirements:
+- Implement every ui element in the PDL as a visible, rendered component
+- Implement every flow as an interactive sequence — buttons, state changes, transitions. Flows with action gates must branch (success path, error/invalid path)
+- Every navigation target in the PDL must be reachable — if a settings page is mentioned, it must exist and be navigable to
+- Every element with an extended or alternate mode must show that mode (expanded card, edit state, preview pane, etc.)
+- Use placeholder content for entities — fake names, sample data, lorem text — sized to feel real
+- For any preview mentioned (CV preview, document preview, image preview): render a styled placeholder panel that occupies the right space and communicates the UX — no real viewer needed
+- Do not fetch external URLs or load external resources. Fully self-contained HTML
+- Inline CSS and vanilla JS only. No CDN links
 
-Review for:
-1. CONFLICTS — decisions that contradict each other (e.g. "multi-page app" vs "single page app")
-2. MISCATEGORIZATIONS — decisions in the wrong category:
-   - entity = a data object or thing (User, File, Card)
-   - flow = a process or sequence of steps (Upload file → show card)
-   - ui = an interface element or visual decision (dark theme, sidebar layout)
-   - constraint = a rule or limitation (max 5 items, read-only for guests)
-3. EMERGING ELEMENTS — things implied by existing decisions that aren't yet listed
-   (e.g. "upload file → show file card" implies a file picker component and a card component)
+Return only the HTML. No markdown, no explanation, no code fences.`;
 
-Structure your response as:
-- A short analysis section noting what you found
-- A suggested refined PDL listing all decisions (keep good ones, fix/move miscategorized ones, add emerging ones), grouped by category`;
+const DEFAULT_REFINE_PROMPT = `Refine the following Project Decision List. Apply these category definitions strictly:
+
+- entity: a data model the app works with (User, File, CV, Project, Tag). Named nouns.
+- flow: a user journey or process. Must include action gates — what triggers it, branch conditions, and outcomes. Format: "Trigger → step → [condition] outcome / [condition] outcome"
+- ui: a specific named interface component (UploadButton, FileCardGrid, PreviewPanel, SideNav, EmptyState, Toast). Not visual style, not vague descriptions — concrete component names.
+- constraint: a rule or limitation explicitly stated in the decisions. Do not invent new ones.
+
+What to do:
+- Rewrite vague ui entries as specific named components
+- Add action gates to flows that lack them
+- Move miscategorized decisions to the correct category
+- Surface ui components and entities clearly implied by flows (e.g. "upload → show card" implies UploadButton and FileCard)
+
+What not to do:
+- Do not invent constraints
+- Do not ask questions
+- Do not add decisions not implied by what is already listed
+- Do not redesign — only clarify and complete
+
+Return: a brief note on each change made, then the full refined PDL grouped by category.`;
 
 function projectToJSON() {
   return {
@@ -529,6 +552,16 @@ function buildFullPrompt() {
 
 function updatePromptPreview() {
   document.getElementById('prompt-preview').textContent = buildFullPrompt();
+}
+
+function resetPrompt(which) {
+  if (which === 'gen') {
+    document.getElementById('prompt-text').value = DEFAULT_PROMPT;
+    updatePromptPreview();
+  } else {
+    document.getElementById('refine-prompt-text').value = DEFAULT_REFINE_PROMPT;
+  }
+  autosave();
 }
 
 // ─── Tabs ─────────────────────────────────────────────────────
