@@ -618,7 +618,7 @@ async function generate() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         model: MODELS[model].id,
-        max_tokens: 4096,
+        max_tokens: 8192,
         messages: [{ role: 'user', content: document.getElementById('prompt-preview').value.trim() || buildFullPrompt() }]
       })
     });
@@ -628,6 +628,9 @@ async function generate() {
 
     let html = data.content?.[0]?.text || '';
     html = html.replace(/^```(?:html)?\n?/i, '').replace(/\n?```$/i, '').trim();
+
+    const truncated = data.stop_reason === 'max_tokens';
+    if (truncated) showError('Output was truncated — try Sonnet for larger mockups, or simplify the PDL.');
 
     lastHTML = html;
     renderPreview(html);
