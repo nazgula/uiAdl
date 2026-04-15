@@ -95,7 +95,9 @@
       <button onclick="showTab('decisions')" id="tab-decisions"
         class="tab-active text-sm pb-2 px-1 border-b-2 transition">Decisions</button>
       <button onclick="showTab('prompt')" id="tab-prompt"
-        class="text-sm pb-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">Prompt</button>
+        class="text-sm pb-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">Gen Prompt</button>
+      <button onclick="showTab('refine')" id="tab-refine"
+        class="text-sm pb-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">Refine Prompt</button>
     </div>
 
     <!-- Decisions tab -->
@@ -128,7 +130,7 @@
       </div>
     </div>
 
-    <!-- Prompt tab -->
+    <!-- Gen Prompt tab -->
     <div id="panel-prompt" class="hidden flex-col flex-1 p-4 gap-3">
       <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Generation prompt</label>
       <textarea id="prompt-text" rows="6"
@@ -142,8 +144,17 @@
       </div>
     </div>
 
-    <!-- Generate button -->
-    <div class="p-4 border-t border-gray-100">
+    <!-- Refine Prompt tab -->
+    <div id="panel-refine" class="hidden flex-col flex-1 p-4 gap-3">
+      <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Refine prompt</label>
+      <textarea id="refine-prompt-text" rows="12"
+        class="text-sm border border-gray-200 rounded-lg p-3 resize-none flex-1"
+        oninput="autosave()"></textarea>
+      <p class="text-xs text-gray-400">Sent with your full PDL. Model returns analysis + suggested refined list as text.</p>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="p-4 border-t border-gray-100 space-y-2">
       <button id="generate-btn" onclick="generate()"
         class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2">
         <svg id="spinner" class="spinner hidden w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -152,7 +163,15 @@
         </svg>
         <span id="generate-label">Generate UI</span>
       </button>
-      <p id="error-msg" class="text-xs text-red-500 mt-2 hidden"></p>
+      <button id="refine-btn" onclick="refinePDL()"
+        class="w-full border border-indigo-300 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed text-indigo-600 font-semibold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2">
+        <svg id="refine-spinner" class="spinner hidden w-4 h-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+        </svg>
+        <span id="refine-label">Refine PDL</span>
+      </button>
+      <p id="error-msg" class="text-xs text-red-500 hidden"></p>
     </div>
   </section>
 
@@ -165,6 +184,8 @@
           class="text-xs px-3 py-1 rounded bg-gray-100 text-gray-600 font-medium hover:bg-gray-200 transition">Render</button>
         <button id="view-source" onclick="setView('source')"
           class="text-xs px-3 py-1 rounded text-gray-400 hover:bg-gray-200 transition">Source</button>
+        <button id="view-analysis" onclick="setView('analysis')"
+          class="text-xs px-3 py-1 rounded text-gray-400 hover:bg-gray-200 transition">Analysis</button>
         <button onclick="copySource()"
           class="text-xs px-3 py-1 rounded text-gray-400 hover:bg-gray-200 transition">Copy HTML</button>
       </div>
@@ -188,6 +209,18 @@
       <pre id="source-code"
         class="text-xs font-mono bg-white rounded-lg p-4 h-full overflow-auto border border-gray-200 text-gray-700 whitespace-pre-wrap"></pre>
     </div>
+
+    <!-- Analysis view -->
+    <div id="preview-analysis" class="hidden flex-1 p-4 overflow-y-auto">
+      <div id="analysis-empty" class="h-full flex flex-col items-center justify-center text-gray-300 gap-3">
+        <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        <p class="text-sm">Click Refine PDL to analyze your decisions</p>
+      </div>
+      <div id="analysis-content" class="hidden bg-white rounded-lg border border-gray-200 p-5 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed"></div>
+    </div>
   </section>
 </main>
 
@@ -209,11 +242,28 @@ const MODELS = {
 // ─── Project serialization ────────────────────────────────────
 const DEFAULT_PROMPT = `Generate a UI mockup based on these project decisions. Return only valid HTML with inline CSS — no markdown, no explanations, no code fences. The output will be rendered directly in a browser iframe.`;
 
+const DEFAULT_REFINE_PROMPT = `Analyze this Project Decision List and suggest a refined version.
+
+Review for:
+1. CONFLICTS — decisions that contradict each other (e.g. "multi-page app" vs "single page app")
+2. MISCATEGORIZATIONS — decisions in the wrong category:
+   - entity = a data object or thing (User, File, Card)
+   - flow = a process or sequence of steps (Upload file → show card)
+   - ui = an interface element or visual decision (dark theme, sidebar layout)
+   - constraint = a rule or limitation (max 5 items, read-only for guests)
+3. EMERGING ELEMENTS — things implied by existing decisions that aren't yet listed
+   (e.g. "upload file → show file card" implies a file picker component and a card component)
+
+Structure your response as:
+- A short analysis section noting what you found
+- A suggested refined PDL listing all decisions (keep good ones, fix/move miscategorized ones, add emerging ones), grouped by category`;
+
 function projectToJSON() {
   return {
     name: document.getElementById('project-name').value,
     desc: document.getElementById('project-desc').value,
     prompt: document.getElementById('prompt-text').value,
+    refinePrompt: document.getElementById('refine-prompt-text').value,
     decisions
   };
 }
@@ -224,6 +274,7 @@ function loadProjectData(data) {
   document.getElementById('project-name').value = project.name;
   document.getElementById('project-desc').value = project.desc;
   document.getElementById('prompt-text').value = data.prompt || DEFAULT_PROMPT;
+  document.getElementById('refine-prompt-text').value = data.refinePrompt || DEFAULT_REFINE_PROMPT;
   autosave();
   renderDecisions();
   updateCostEstimate();
@@ -483,31 +534,29 @@ function updatePromptPreview() {
 // ─── Tabs ─────────────────────────────────────────────────────
 function showTab(tab) {
   activeTab = tab;
-  document.getElementById('panel-decisions').classList.toggle('hidden', tab !== 'decisions');
-  document.getElementById('panel-decisions').classList.toggle('flex', tab === 'decisions');
-  document.getElementById('panel-prompt').classList.toggle('hidden', tab !== 'prompt');
-  document.getElementById('panel-prompt').classList.toggle('flex', tab === 'prompt');
-  document.getElementById('tab-decisions').className =
-    (tab === 'decisions' ? 'tab-active ' : 'text-gray-500 hover:text-gray-700 ') +
-    'text-sm pb-2 px-1 border-b-2 transition';
-  document.getElementById('tab-prompt').className =
-    (tab === 'prompt' ? 'tab-active ' : 'text-gray-500 hover:text-gray-700 ') +
-    'text-sm pb-2 px-1 border-b-2 transition';
+  const tabs = ['decisions', 'prompt', 'refine'];
+  tabs.forEach(t => {
+    const panel = document.getElementById('panel-' + t);
+    panel.classList.toggle('hidden', t !== tab);
+    panel.classList.toggle('flex', t === tab);
+    document.getElementById('tab-' + t).className =
+      (t === tab ? 'tab-active ' : 'text-gray-500 hover:text-gray-700 ') +
+      'text-sm pb-2 px-1 border-b-2 transition';
+  });
   if (tab === 'prompt') updatePromptPreview();
 }
 
 // ─── Preview views ────────────────────────────────────────────
 function setView(v) {
   activeView = v;
-  document.getElementById('preview-render').classList.toggle('hidden', v !== 'render');
-  document.getElementById('preview-render').classList.toggle('flex', v === 'render');
-  document.getElementById('preview-source').classList.toggle('hidden', v !== 'source');
-  document.getElementById('view-render').className =
-    'text-xs px-3 py-1 rounded font-medium transition ' +
-    (v === 'render' ? 'bg-gray-100 text-gray-600' : 'text-gray-400 hover:bg-gray-200');
-  document.getElementById('view-source').className =
-    'text-xs px-3 py-1 rounded font-medium transition ' +
-    (v === 'source' ? 'bg-gray-100 text-gray-600' : 'text-gray-400 hover:bg-gray-200');
+  const views = ['render', 'source', 'analysis'];
+  views.forEach(name => {
+    document.getElementById('preview-' + name).classList.toggle('hidden', name !== v);
+    if (name === 'render') document.getElementById('preview-render').classList.toggle('flex', v === 'render');
+    const btn = document.getElementById('view-' + name);
+    if (btn) btn.className = 'text-xs px-3 py-1 rounded font-medium transition ' +
+      (name === v ? 'bg-gray-100 text-gray-600' : 'text-gray-400 hover:bg-gray-200');
+  });
 }
 
 function copySource() {
@@ -572,8 +621,74 @@ function renderPreview(html) {
 
 function setLoading(on) {
   document.getElementById('generate-btn').disabled = on;
+  document.getElementById('refine-btn').disabled = on;
   document.getElementById('spinner').classList.toggle('hidden', !on);
   document.getElementById('generate-label').textContent = on ? 'Generating…' : 'Generate UI';
+}
+
+// ─── Refine PDL ───────────────────────────────────────────────
+async function refinePDL() {
+  if (!decisions.length) { showError('Add some decisions first.'); return; }
+
+  setRefineLoading(true);
+  hideError();
+
+  const refinePrompt = document.getElementById('refine-prompt-text').value.trim();
+  const name = document.getElementById('project-name').value.trim();
+  const desc = document.getElementById('project-desc').value.trim();
+
+  let context = '';
+  if (name) context += `Project: ${name}\n`;
+  if (desc) context += `${desc}\n`;
+  context += '\n';
+
+  const grouped = ['entity','flow','ui','constraint'].map(cat => {
+    const items = decisions.filter(d => d.category === cat);
+    if (!items.length) return '';
+    return `[${cat.toUpperCase()}]\n${items.map(d => (d.active ? '✓' : '○') + ' ' + d.text).join('\n')}`;
+  }).filter(Boolean).join('\n\n');
+
+  const fullMessage = `${refinePrompt}\n\n## Current PDL\n\n${context}${grouped}`;
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: MODELS[model].id,
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: fullMessage }]
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `API error ${res.status}`);
+
+    const text = data.content?.[0]?.text || '';
+    document.getElementById('analysis-empty').classList.add('hidden');
+    const content = document.getElementById('analysis-content');
+    content.textContent = text;
+    content.classList.remove('hidden');
+    setView('analysis');
+
+    const inTok  = data.usage?.input_tokens  || 0;
+    const outTok = data.usage?.output_tokens || 0;
+    const m = MODELS[model];
+    const cost = (inTok / 1e6 * m.inputPer1M) + (outTok / 1e6 * m.outputPer1M);
+    document.getElementById('cost-val').textContent = cost.toFixed(4);
+    document.getElementById('cost-badge').classList.remove('hidden');
+
+  } catch(err) {
+    showError(err.message);
+  } finally {
+    setRefineLoading(false);
+  }
+}
+
+function setRefineLoading(on) {
+  document.getElementById('generate-btn').disabled = on;
+  document.getElementById('refine-btn').disabled = on;
+  document.getElementById('refine-spinner').classList.toggle('hidden', !on);
+  document.getElementById('refine-label').textContent = on ? 'Analyzing…' : 'Refine PDL';
 }
 
 function showError(msg) {
@@ -589,9 +704,13 @@ function hideError() {
 // ─── Init ─────────────────────────────────────────────────────
 const saved = localStorage.getItem('pdl_state');
 if (saved) {
-  try { loadProjectData(JSON.parse(saved)); } catch(e) { document.getElementById('prompt-text').value = DEFAULT_PROMPT; }
+  try { loadProjectData(JSON.parse(saved)); } catch(e) {
+    document.getElementById('prompt-text').value = DEFAULT_PROMPT;
+    document.getElementById('refine-prompt-text').value = DEFAULT_REFINE_PROMPT;
+  }
 } else {
   document.getElementById('prompt-text').value = DEFAULT_PROMPT;
+  document.getElementById('refine-prompt-text').value = DEFAULT_REFINE_PROMPT;
 }
 updatePromptPreview();
 </script>
