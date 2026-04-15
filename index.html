@@ -133,7 +133,8 @@
       <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Generation prompt</label>
       <textarea id="prompt-text" rows="6"
         class="text-sm border border-gray-200 rounded-lg p-3 resize-none flex-1"
-        placeholder="Describe what to generate.">Generate a UI mockup based on these project decisions. Return only valid HTML with inline CSS — no markdown, no explanations, no code fences. The output will be rendered directly in a browser iframe.</textarea>
+        placeholder="Describe what to generate."
+        oninput="autosave(); updatePromptPreview()"></textarea>
       <div class="space-y-2">
         <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Preview of what will be sent</label>
         <div id="prompt-preview"
@@ -206,10 +207,13 @@ const MODELS = {
 };
 
 // ─── Project serialization ────────────────────────────────────
+const DEFAULT_PROMPT = `Generate a UI mockup based on these project decisions. Return only valid HTML with inline CSS — no markdown, no explanations, no code fences. The output will be rendered directly in a browser iframe.`;
+
 function projectToJSON() {
   return {
     name: document.getElementById('project-name').value,
     desc: document.getElementById('project-desc').value,
+    prompt: document.getElementById('prompt-text').value,
     decisions
   };
 }
@@ -219,6 +223,7 @@ function loadProjectData(data) {
   decisions = data.decisions || [];
   document.getElementById('project-name').value = project.name;
   document.getElementById('project-desc').value = project.desc;
+  document.getElementById('prompt-text').value = data.prompt || DEFAULT_PROMPT;
   autosave();
   renderDecisions();
   updateCostEstimate();
@@ -584,7 +589,9 @@ function hideError() {
 // ─── Init ─────────────────────────────────────────────────────
 const saved = localStorage.getItem('pdl_state');
 if (saved) {
-  try { loadProjectData(JSON.parse(saved)); } catch(e) {}
+  try { loadProjectData(JSON.parse(saved)); } catch(e) { document.getElementById('prompt-text').value = DEFAULT_PROMPT; }
+} else {
+  document.getElementById('prompt-text').value = DEFAULT_PROMPT;
 }
 updatePromptPreview();
 </script>

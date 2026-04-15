@@ -28,7 +28,7 @@ Key frontend state: `decisions[]`, `project {name, desc}`, `editingId`, `model`.
 ## Project file format
 
 ```json
-{ "name": "...", "desc": "...", "decisions": [{ "id": 1234, "text": "...", "category": "entity|flow|ui|constraint", "active": true }] }
+{ "name": "...", "desc": "...", "prompt": "...", "decisions": [{ "id": 1234, "text": "...", "category": "entity|flow|ui|constraint", "active": true }] }
 ```
 
 ## Prompt construction
