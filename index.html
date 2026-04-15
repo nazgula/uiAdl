@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDL — Project Decision List</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .category-entity    { background: #dbeafe; color: #1e40af; }
+    .category-flow      { background: #d1fae5; color: #065f46; }
+    .category-ui        { background: #ede9fe; color: #5b21b6; }
+    .category-constraint{ background: #fee2e2; color: #991b1b; }
+    .decision-row:hover .delete-btn { opacity: 1; }
+    .delete-btn { opacity: 0; transition: opacity 0.15s; }
+    #preview-frame { border: none; width: 100%; height: 100%; }
+    .tab-active { border-bottom: 2px solid #6366f1; color: #6366f1; font-weight: 600; }
+    textarea:focus, input:focus, select:focus { outline: 2px solid #6366f1; outline-offset: 1px; }
+    .spinner { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- ─── Header ─────────────────────────────────────────────── -->
+<header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+  <div class="flex items-center gap-3">
+    <span class="font-bold text-gray-800 text-lg tracking-tight">PDL</span>
+    <span class="text-gray-400 text-sm">Project Decision List</span>
+  </div>
+  <div class="flex items-center gap-3">
+    <!-- API Key loader -->
+    <div id="key-status" class="flex items-center gap-2">
+      <span id="key-indicator" class="w-2 h-2 rounded-full bg-red-400"></span>
+      <span id="key-label" class="text-xs text-gray-500">No API key</span>
+      <label class="cursor-pointer text-xs text-indigo-600 hover:text-indigo-800 font-medium border border-indigo-200 rounded px-2 py-1 hover:bg-indigo-50 transition">
+        Load config
+        <input type="file" id="config-file" accept=".json" class="hidden" />
+      </label>
+      <button id="clear-key" class="text-xs text-gray-400 hover:text-red-500 transition hidden">clear</button>
+    </div>
+    <!-- Model switcher -->
+    <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+      <button id="btn-haiku" onclick="setModel('haiku')"
+        class="text-xs px-3 py-1 rounded-md bg-white shadow-sm font-medium text-gray-700 transition">
+        Haiku
+      </button>
+      <button id="btn-sonnet" onclick="setModel('sonnet')"
+        class="text-xs px-3 py-1 rounded-md font-medium text-gray-500 transition">
+        Sonnet
+      </button>
+    </div>
+    <span id="cost-badge" class="text-xs text-gray-400 hidden">~$<span id="cost-val">0.00</span></span>
+  </div>
+</header>
+
+<!-- ─── Main layout ─────────────────────────────────────────── -->
+<main class="flex h-[calc(100vh-53px)]">
+
+  <!-- Left panel: PDL Editor -->
+  <section class="w-[420px] min-w-[340px] flex flex-col border-r border-gray-200 bg-white">
+
+    <!-- Tabs -->
+    <div class="flex border-b border-gray-200 px-4 pt-2 gap-4">
+      <button onclick="showTab('decisions')" id="tab-decisions"
+        class="tab-active text-sm pb-2 px-1 border-b-2 transition">Decisions</button>
+      <button onclick="showTab('prompt')" id="tab-prompt"
+        class="text-sm pb-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">Prompt</button>
+    </div>
+
+    <!-- Decisions tab -->
+    <div id="panel-decisions" class="flex flex-col flex-1 overflow-hidden">
+      <!-- Add decision form -->
+      <div class="p-4 border-b border-gray-100 space-y-2">
+        <div class="flex gap-2">
+          <select id="new-category"
+            class="text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-700 cursor-pointer">
+            <option value="entity">entity</option>
+            <option value="flow">flow</option>
+            <option value="ui">ui</option>
+            <option value="constraint">constraint</option>
+          </select>
+          <input id="new-text" type="text" placeholder="Add a decision…"
+            class="flex-1 text-sm border border-gray-200 rounded-md px-3 py-1.5 bg-white"
+            onkeydown="if(event.key==='Enter') addDecision()" />
+          <button onclick="addDecision()"
+            class="text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-md font-medium transition">+</button>
+        </div>
+      </div>
+
+      <!-- Decision list -->
+      <div id="decision-list" class="flex-1 overflow-y-auto p-3 space-y-1"></div>
+
+      <!-- Stats bar -->
+      <div class="px-4 py-2 border-t border-gray-100 flex items-center justify-between">
+        <span id="stats" class="text-xs text-gray-400"></span>
+        <button onclick="clearAll()" class="text-xs text-gray-400 hover:text-red-500 transition">clear all</button>
+      </div>
+    </div>
+
+    <!-- Prompt tab -->
+    <div id="panel-prompt" class="hidden flex-col flex-1 p-4 gap-3">
+      <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Generation prompt</label>
+      <textarea id="prompt-text" rows="6"
+        class="text-sm border border-gray-200 rounded-lg p-3 resize-none flex-1"
+        placeholder="Describe what to generate. E.g.: Generate a responsive signup form UI based on these decisions.">Generate a UI mockup based on these project decisions. Return only valid HTML with inline CSS — no markdown, no explanations, no code fences. The output will be rendered directly in a browser iframe.</textarea>
+      <div class="space-y-2">
+        <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Preview of what will be sent</label>
+        <div id="prompt-preview"
+          class="text-xs font-mono bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto whitespace-pre-wrap text-gray-600"></div>
+      </div>
+    </div>
+
+    <!-- Generate button -->
+    <div class="p-4 border-t border-gray-100">
+      <button id="generate-btn" onclick="generate()"
+        class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2">
+        <svg id="spinner" class="spinner hidden w-4 h-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+        </svg>
+        <span id="generate-label">Generate UI</span>
+      </button>
+      <p id="error-msg" class="text-xs text-red-500 mt-2 hidden"></p>
+    </div>
+  </section>
+
+  <!-- Right panel: Preview -->
+  <section class="flex-1 flex flex-col bg-gray-100">
+    <div class="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
+      <span class="text-sm font-medium text-gray-600">Preview</span>
+      <div class="flex gap-2">
+        <button id="view-render" onclick="setView('render')"
+          class="text-xs px-3 py-1 rounded bg-gray-100 text-gray-600 font-medium hover:bg-gray-200 transition">Render</button>
+        <button id="view-source" onclick="setView('source')"
+          class="text-xs px-3 py-1 rounded text-gray-400 hover:bg-gray-200 transition">Source</button>
+        <button onclick="copySource()"
+          class="text-xs px-3 py-1 rounded text-gray-400 hover:bg-gray-200 transition">Copy HTML</button>
+      </div>
+    </div>
+
+    <!-- Render view -->
+    <div id="preview-render" class="flex-1 p-4">
+      <div id="preview-empty" class="h-full flex flex-col items-center justify-center text-gray-300 gap-3">
+        <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+            d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        <p class="text-sm">Add decisions and click Generate</p>
+      </div>
+      <iframe id="preview-frame" class="hidden w-full h-full rounded-lg shadow-sm bg-white"
+        sandbox="allow-scripts" title="UI Preview"></iframe>
+    </div>
+
+    <!-- Source view -->
+    <div id="preview-source" class="hidden flex-1 p-4">
+      <pre id="source-code"
+        class="text-xs font-mono bg-white rounded-lg p-4 h-full overflow-auto border border-gray-200 text-gray-700 whitespace-pre-wrap"></pre>
+    </div>
+  </section>
+</main>
+
+<script>
+// ─── State ────────────────────────────────────────────────────
+let apiKey = null;
+let model = 'haiku';
+let decisions = JSON.parse(localStorage.getItem('pdl_decisions') || '[]');
+let lastHTML = '';
+let activeView = 'render';
+let activeTab = 'decisions';
+
+const MODELS = {
+  haiku:  { id: 'claude-haiku-4-5-20251001',       inputPer1M: 0.80,  outputPer1M: 4.00 },
+  sonnet: { id: 'claude-sonnet-4-6', inputPer1M: 3.00, outputPer1M: 15.00 }
+};
+
+// ─── API Key loading ──────────────────────────────────────────
+document.getElementById('config-file').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const cfg = JSON.parse(ev.target.result);
+      if (!cfg.apiKey) throw new Error('No "apiKey" field found in JSON');
+      apiKey = cfg.apiKey;
+      setKeyUI(true);
+    } catch(err) {
+      showError('Config error: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  // Reset input so same file can be re-loaded
+  e.target.value = '';
+});
+
+document.getElementById('clear-key').addEventListener('click', () => {
+  apiKey = null;
+  setKeyUI(false);
+});
+
+function setKeyUI(loaded) {
+  document.getElementById('key-indicator').className =
+    'w-2 h-2 rounded-full ' + (loaded ? 'bg-green-400' : 'bg-red-400');
+  document.getElementById('key-label').textContent = loaded ? 'API key loaded' : 'No API key';
+  document.getElementById('clear-key').classList.toggle('hidden', !loaded);
+}
+
+// ─── Model switcher ───────────────────────────────────────────
+function setModel(m) {
+  model = m;
+  document.getElementById('btn-haiku').className =
+    'text-xs px-3 py-1 rounded-md font-medium transition ' +
+    (m === 'haiku' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-500 hover:bg-gray-200');
+  document.getElementById('btn-sonnet').className =
+    'text-xs px-3 py-1 rounded-md font-medium transition ' +
+    (m === 'sonnet' ? 'bg-white shadow-sm text-gray-700' : 'text-gray-500 hover:bg-gray-200');
+  updateCostEstimate();
+}
+
+function updateCostEstimate() {
+  const activeCount = decisions.filter(d => d.active).length;
+  if (activeCount === 0) { document.getElementById('cost-badge').classList.add('hidden'); return; }
+  const prompt = buildFullPrompt();
+  // rough: 1 token ≈ 4 chars; output ~800 tokens
+  const inputTokens = Math.ceil(prompt.length / 4);
+  const outputTokens = 800;
+  const m = MODELS[model];
+  const cost = (inputTokens / 1e6 * m.inputPer1M) + (outputTokens / 1e6 * m.outputPer1M);
+  document.getElementById('cost-val').textContent = cost.toFixed(4);
+  document.getElementById('cost-badge').classList.remove('hidden');
+}
+
+// ─── Decisions ────────────────────────────────────────────────
+function saveDecisions() {
+  localStorage.setItem('pdl_decisions', JSON.stringify(decisions));
+}
+
+function addDecision() {
+  const text = document.getElementById('new-text').value.trim();
+  if (!text) return;
+  const cat = document.getElementById('new-category').value;
+  decisions.push({ id: Date.now(), text, category: cat, active: true });
+  document.getElementById('new-text').value = '';
+  saveDecisions();
+  renderDecisions();
+  updateCostEstimate();
+  updatePromptPreview();
+}
+
+function toggleDecision(id) {
+  const d = decisions.find(d => d.id === id);
+  if (d) { d.active = !d.active; saveDecisions(); renderDecisions(); updateCostEstimate(); updatePromptPreview(); }
+}
+
+function deleteDecision(id) {
+  decisions = decisions.filter(d => d.id !== id);
+  saveDecisions();
+  renderDecisions();
+  updateCostEstimate();
+  updatePromptPreview();
+}
+
+function clearAll() {
+  if (!decisions.length || !confirm('Clear all decisions?')) return;
+  decisions = [];
+  saveDecisions();
+  renderDecisions();
+  updateCostEstimate();
+  updatePromptPreview();
+}
+
+function renderDecisions() {
+  const list = document.getElementById('decision-list');
+  const active = decisions.filter(d => d.active).length;
+  document.getElementById('stats').textContent =
+    decisions.length ? `${active} of ${decisions.length} active` : 'No decisions yet';
+
+  if (!decisions.length) {
+    list.innerHTML = '<p class="text-xs text-gray-400 text-center mt-8">No decisions yet.<br>Add one above to get started.</p>';
+    return;
+  }
+
+  const cats = ['entity','flow','ui','constraint'];
+  list.innerHTML = cats.map(cat => {
+    const group = decisions.filter(d => d.category === cat);
+    if (!group.length) return '';
+    return `<div class="mb-3">
+      <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1 px-1">${cat}</div>
+      ${group.map(d => `
+        <div class="decision-row flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer group"
+             onclick="toggleDecision(${d.id})">
+          <input type="checkbox" ${d.active ? 'checked' : ''} onclick="event.stopPropagation();toggleDecision(${d.id})"
+            class="w-3.5 h-3.5 rounded accent-indigo-600 cursor-pointer flex-shrink-0" />
+          <span class="text-sm flex-1 ${d.active ? 'text-gray-800' : 'text-gray-400 line-through'}">${escHtml(d.text)}</span>
+          <span class="text-xs px-1.5 py-0.5 rounded-full font-medium category-${cat} flex-shrink-0">${cat}</span>
+          <button class="delete-btn text-gray-300 hover:text-red-400 transition flex-shrink-0"
+            onclick="event.stopPropagation();deleteDecision(${d.id})" title="Delete">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Prompt building ──────────────────────────────────────────
+function buildFullPrompt() {
+  const userPrompt = document.getElementById('prompt-text').value.trim();
+  const active = decisions.filter(d => d.active);
+  if (!active.length) return userPrompt;
+
+  const grouped = ['entity','flow','ui','constraint'].map(cat => {
+    const items = active.filter(d => d.category === cat);
+    if (!items.length) return '';
+    return `[${cat.toUpperCase()}]\n${items.map(d => '- ' + d.text).join('\n')}`;
+  }).filter(Boolean).join('\n\n');
+
+  return `${userPrompt}\n\n## Active Project Decisions\n\n${grouped}`;
+}
+
+function updatePromptPreview() {
+  document.getElementById('prompt-preview').textContent = buildFullPrompt();
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────
+function showTab(tab) {
+  activeTab = tab;
+  document.getElementById('panel-decisions').classList.toggle('hidden', tab !== 'decisions');
+  document.getElementById('panel-decisions').classList.toggle('flex', tab === 'decisions');
+  document.getElementById('panel-prompt').classList.toggle('hidden', tab !== 'prompt');
+  document.getElementById('panel-prompt').classList.toggle('flex', tab === 'prompt');
+  document.getElementById('tab-decisions').className =
+    (tab === 'decisions' ? 'tab-active ' : 'text-gray-500 hover:text-gray-700 ') +
+    'text-sm pb-2 px-1 border-b-2 transition';
+  document.getElementById('tab-prompt').className =
+    (tab === 'prompt' ? 'tab-active ' : 'text-gray-500 hover:text-gray-700 ') +
+    'text-sm pb-2 px-1 border-b-2 transition';
+  if (tab === 'prompt') updatePromptPreview();
+}
+
+// ─── Preview views ────────────────────────────────────────────
+function setView(v) {
+  activeView = v;
+  document.getElementById('preview-render').classList.toggle('hidden', v !== 'render');
+  document.getElementById('preview-render').classList.toggle('flex', v === 'render');
+  document.getElementById('preview-source').classList.toggle('hidden', v !== 'source');
+  document.getElementById('view-render').className =
+    'text-xs px-3 py-1 rounded font-medium transition ' +
+    (v === 'render' ? 'bg-gray-100 text-gray-600' : 'text-gray-400 hover:bg-gray-200');
+  document.getElementById('view-source').className =
+    'text-xs px-3 py-1 rounded font-medium transition ' +
+    (v === 'source' ? 'bg-gray-100 text-gray-600' : 'text-gray-400 hover:bg-gray-200');
+}
+
+function copySource() {
+  if (!lastHTML) return;
+  navigator.clipboard.writeText(lastHTML).then(() => {
+    const btn = event.target;
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy HTML', 1500);
+  });
+}
+
+// ─── Generate ─────────────────────────────────────────────────
+async function generate() {
+  if (!apiKey) { showError('Load your config.json first (top right).'); return; }
+  const activeDecisions = decisions.filter(d => d.active);
+  if (!activeDecisions.length) { showError('No active decisions. Add and enable some first.'); return; }
+
+  setLoading(true);
+  hideError();
+
+  const fullPrompt = buildFullPrompt();
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-allow-browser': 'true'
+      },
+      body: JSON.stringify({
+        model: MODELS[model].id,
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: fullPrompt }]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `API error ${res.status}`);
+    }
+
+    const data = await res.json();
+    let html = data.content?.[0]?.text || '';
+
+    // Strip markdown code fences if model wrapped output anyway
+    html = html.replace(/^```(?:html)?\n?/i, '').replace(/\n?```$/i, '').trim();
+
+    lastHTML = html;
+    renderPreview(html);
+    document.getElementById('source-code').textContent = html;
+
+    // Show actual cost
+    const inTok  = data.usage?.input_tokens  || 0;
+    const outTok = data.usage?.output_tokens || 0;
+    const m = MODELS[model];
+    const cost = (inTok / 1e6 * m.inputPer1M) + (outTok / 1e6 * m.outputPer1M);
+    document.getElementById('cost-val').textContent = cost.toFixed(4);
+    document.getElementById('cost-badge').classList.remove('hidden');
+
+  } catch(err) {
+    showError(err.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderPreview(html) {
+  document.getElementById('preview-empty').classList.add('hidden');
+  const frame = document.getElementById('preview-frame');
+  frame.classList.remove('hidden');
+  frame.srcdoc = html;
+  if (activeView !== 'render') setView('render');
+}
+
+function setLoading(on) {
+  document.getElementById('generate-btn').disabled = on;
+  document.getElementById('spinner').classList.toggle('hidden', !on);
+  document.getElementById('generate-label').textContent = on ? 'Generating…' : 'Generate UI';
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function hideError() {
+  document.getElementById('error-msg').classList.add('hidden');
+}
+
+// ─── Init ─────────────────────────────────────────────────────
+renderDecisions();
+updatePromptPreview();
+</script>
+</body>
+</html>
