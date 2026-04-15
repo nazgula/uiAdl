@@ -249,17 +249,25 @@ const MODELS = {
 };
 
 // ─── Project serialization ────────────────────────────────────
-const DEFAULT_PROMPT = `Generate a complete, interactive HTML mockup based on these project decisions.
+const DEFAULT_PROMPT = `Generate a complete, interactive HTML wireframe based on these project decisions.
 
-Requirements:
-- Implement every ui element in the PDL as a visible, rendered component
-- Implement every flow as an interactive sequence — buttons, state changes, transitions. Flows with action gates must branch (success path, error/invalid path)
-- Every navigation target in the PDL must be reachable — if a settings page is mentioned, it must exist and be navigable to
-- Every element with an extended or alternate mode must show that mode (expanded card, edit state, preview pane, etc.)
-- Use placeholder content for entities — fake names, sample data, lorem text — sized to feel real
-- For any preview mentioned (CV preview, document preview, image preview): render a styled placeholder panel that occupies the right space and communicates the UX — no real viewer needed
-- Do not fetch external URLs or load external resources. Fully self-contained HTML
-- Inline CSS and vanilla JS only. No CDN links
+Visual style — Balsamiq-like wireframe:
+- Font: "Comic Sans MS", cursive (gives the hand-drawn sketch feel)
+- Colors: black, white, and grays only (#f4f4f4, #ddd, #aaa, #555, #111)
+- No gradients, no shadows, no border-radius, no icons, no images
+- Borders: solid 1-2px #aaa or #333
+- Buttons: plain bordered rectangles with text labels
+- Where an icon would appear, use a bracketed text label: [✕] [+] [≡] [▶]
+- Placeholder images/previews: gray rectangle (#ddd) with a centered label in #888
+- Inputs and selects: plain bordered boxes, no styling beyond border and padding
+
+Functional requirements:
+- Implement every ui element in the PDL as a visible component
+- Implement every flow as an interactive sequence. Flows with action gates must branch (success path and error/invalid path)
+- Every navigation target in the PDL must be reachable
+- Every element with an extended or alternate mode must be togglable
+- Use placeholder content for entities — fake names, sample data — sized to feel real
+- Do not fetch external URLs. Fully self-contained HTML, inline CSS and vanilla JS only
 
 Return only the HTML. No markdown, no explanation, no code fences.`;
 
