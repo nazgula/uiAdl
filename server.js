@@ -26,7 +26,7 @@ function writeMeta(project, meta) {
   fs.writeFileSync(metaPath(project), JSON.stringify(meta, null, 2));
 }
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '20mb' }));
 app.use(express.static(__dirname, { index: 'index.html' }));
 
 // ─── Proxy: Anthropic generate ────────────────────────────────

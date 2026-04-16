@@ -802,6 +802,7 @@ async function saveRender() {
     if (!res.ok) throw new Error('Save failed');
     btn.textContent = 'Saved!';
     setTimeout(() => { btn.textContent = 'Save Render'; }, 1500);
+    setView('history');
   } catch(e) {
     btn.textContent = 'Save Render';
     showError(e.message);
