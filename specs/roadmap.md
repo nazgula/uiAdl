@@ -10,22 +10,22 @@ Priority: ship fast, but fix gross problems before adding features.
 Get the project into a clean, shareable state before making the repo public. Sub-tasks must run in order.
 
 ### 0a — Code fixes (before going public)
-- [ ] Fix orphaned reasoning files: `DELETE /api/renders/:project/:id` does not delete `.reasoning.txt`
-- [ ] Audit current CSS output: are renders actually wireframe-style, or drifting toward polished UI?
+- [x] Fix orphaned reasoning files: `DELETE /api/renders/:project/:id` does not delete `.reasoning.txt`
+- [x] Audit current CSS output: are renders actually wireframe-style, or drifting toward polished UI?
 
 ### 0b — Public-safety audit (before any git push)
-- [ ] Confirm `ANTHROPIC_API_KEY` is loaded from `.env` only — not hardcoded anywhere in source
-- [ ] Check git history for any committed `.env` file (`git log --all -- .env`)
-- [ ] Look for hardcoded internal URLs, hostnames, or personal filesystem paths
-- [ ] Review `projects/` and `renders/` directories: flag any project names or decision text containing real client names, company names, or personal content — user decides what to clean
-- [ ] Verify `.gitignore` covers: `.env`, `node_modules/`, `projects/`, `renders/`, `config.json`
-- [ ] **Report findings before proceeding. Do not auto-delete anything.**
+- [x] Confirm `ANTHROPIC_API_KEY` is loaded from `.env` only — not hardcoded anywhere in source
+- [x] Check git history for any committed `.env` file (`git log --all -- .env`)
+- [x] Look for hardcoded internal URLs, hostnames, or personal filesystem paths
+- [x] Review `projects/` and `renders/` directories: flag any project names or decision text containing real client names, company names, or personal content — user decides what to clean
+- [x] Verify `.gitignore` covers: `.env`, `node_modules/`, `projects/`, `renders/`, `config.json`
+- [x] **Report findings before proceeding. Do not auto-delete anything.**
 
 ### 0c — Playwright E2E tests
-- [ ] Install: `npm install -D @playwright/test` + `npx playwright install chromium`
-- [ ] Add `test:e2e` and `test:e2e:ui` scripts to `package.json`
-- [ ] Create `playwright.config.js` (not `.ts` — no TypeScript in this project): single browser (chromium), `webServer` pointing to `node server.js`, `baseURL` at `localhost:8080`
-- [ ] Write 5–8 tests covering real user flows (not button-existence checks):
+- [x] Install: `npm install -D @playwright/test` + `npx playwright install chromium`
+- [x] Add `test:e2e` and `test:e2e:ui` scripts to `package.json`
+- [x] Create `playwright.config.js` (not `.ts` — no TypeScript in this project): single browser (chromium), `webServer` pointing to `node server.js`, `baseURL` at `localhost:8080`
+- [x] Write 5–8 tests covering real user flows (not button-existence checks):
   1. Add a decision (entity, flow, ui, or constraint)
   2. Toggle a decision active/inactive
   3. Generate UI with active decisions → wireframe renders in iframe
@@ -34,11 +34,11 @@ Get the project into a clean, shareable state before making the repo public. Sub
   6. View a saved render's reasoning (R button → Analysis tab)
   7. Error state when API call fails
   8. Empty state (no decisions, no saved renders)
-- [ ] Mock `/api/generate` with Playwright `route()` — no real API credits in tests
-- [ ] Do not modify product code to make tests pass. Note untestable areas in comments.
+- [x] Mock `/api/generate` with Playwright `route()` — no real API credits in tests
+- [x] Do not modify product code to make tests pass. Note untestable areas in comments.
 
 ### 0d — README
-- [ ] Write `README.md` using the agreed structure:
+- [x] Write `README.md` using the agreed structure:
   - One-line description
   - Screenshot or GIF placeholder (user provides)
   - "What it does" (1–2 paragraphs, plain language)
@@ -47,15 +47,15 @@ Get the project into a clean, shareable state before making the repo public. Sub
   - Stack summary
   - Running locally (concrete steps)
   - Tests (how to run Playwright)
-- [ ] No badges, no emojis, no marketing copy. Do not invent features.
+- [x] No badges, no emojis, no marketing copy. Do not invent features.
 
 ### 0e — Repo metadata + final checklist
-- [ ] Confirm `package.json` has `description` and `repository.url`
-- [ ] Confirm license file exists (MIT recommended); ask user if absent
-- [ ] Set GitHub repo description: *"Wireframe prototyping tool. Generates HTML mockups from structured, toggleable decisions using Claude."*
-- [ ] Set GitHub topics: `claude-api`, `wireframe`, `prototyping`, `playwright`, `nodejs`
-- [ ] Verify: no secrets committed, tests pass on fresh clone, README renders on GitHub
-- [ ] **User makes the repo public herself — do not run `gh repo edit --visibility public`**
+- [x] Confirm `package.json` has `description` and `repository.url`
+- [x] Confirm license file exists (MIT recommended); ask user if absent
+- [x] Set GitHub repo description: *"Wireframe prototyping tool. Generates HTML mockups from structured, toggleable decisions using Claude."*
+- [x] Set GitHub topics: `claude-api`, `wireframe`, `prototyping`, `playwright`, `nodejs`
+- [x] Verify: no secrets committed, tests pass on fresh clone, README renders on GitHub
+- [x] **User makes the repo public herself — do not run `gh repo edit --visibility public`**
 
 ---
 
