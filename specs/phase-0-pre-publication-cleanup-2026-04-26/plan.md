@@ -2,11 +2,11 @@
 
 Each numbered group is a single commit. Run in order — later groups assume earlier ones are clean.
 
-Status: 0a [ ], 0b [ ], 0c [ ], 0d [ ], 0e [ ]
+Status: 0a [x], 0b [ ], 0c [ ], 0d [ ], 0e [ ]
 
 Legend: `[ ]` pending, `[~]` in progress, `[x]` done. Update both the heading checkbox and this Status line in the same edit when state changes.
 
-## 1. [ ] Code fixes (sub-phase 0a)
+## 1. [x] Code fixes (sub-phase 0a)
 
 1.1 Fix orphaned reasoning files on render delete.
 - In `server.js`, `DELETE /api/renders/:project/:id`: also unlink `{id}.reasoning.txt` if it exists.
