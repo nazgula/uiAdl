@@ -2,7 +2,7 @@
 
 Each numbered group is a single commit. Run in order — later groups assume earlier ones are clean.
 
-Status: 0a [x], 0b [ ], 0c [ ], 0d [ ], 0e [ ]
+Status: 0a [x], 0b [x], 0c [ ], 0d [ ], 0e [ ]
 
 Legend: `[ ]` pending, `[~]` in progress, `[x]` done. Update both the heading checkbox and this Status line in the same edit when state changes.
 
@@ -23,7 +23,7 @@ Legend: `[ ]` pending, `[~]` in progress, `[x]` done. Update both the heading ch
 
 ---
 
-## 2. [ ] Public-safety audit (sub-phase 0b)
+## 2. [x] Public-safety audit (sub-phase 0b)
 
 2.1 Source scan for secrets.
 - `grep -r "sk-ant" .` (excluding `.env`, `node_modules`)
