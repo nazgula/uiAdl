@@ -110,3 +110,10 @@ Scale to complex apps by generating one segment at a time.
 
 - **Wireframe CSS vocabulary as token-saver**: tried, doesn't work — model rewrites all CSS regardless. Keep `wireframe.css` as visual base layer only.
 - **Reference injection (full HTML)**: inject a full saved render into prompt. High token cost (~3000 tokens per render). Evaluate after Phase 1 to see if reasoning-only reference makes it unnecessary.
+
+## Lessons learned (do not re-litigate)
+
+- The reasoning block (parse + save) is built and working — see `architecture.md` "Reasoning block".
+- The CSS vocabulary instruction doesn't save tokens — the model rewrites all CSS regardless. `wireframe.css` is a base layer only; the model overrides it. Not worth investing further in this direction.
+- A numbered spatial hierarchy in the prompt degrades output — the model flattens flows into spatial siblings and over-elaborates in wrong areas.
+- The core unsolved problem: every generation is a fresh take. The model reinvents the architecture each time, so good renders can't be iterated on reliably. Phase 1 (reasoning quality loop) is the first attempt to address this.
