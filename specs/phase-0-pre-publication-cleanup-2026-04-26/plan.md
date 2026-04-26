@@ -2,7 +2,7 @@
 
 Each numbered group is a single commit. Run in order — later groups assume earlier ones are clean.
 
-Status: 0a [x], 0b [x], 0c [x], 0d [ ], 0e [ ]
+Status: 0a [x], 0b [x], 0c [x], 0d [x], 0e [ ]
 
 Legend: `[ ]` pending, `[~]` in progress, `[x]` done. Update both the heading checkbox and this Status line in the same edit when state changes.
 
@@ -84,7 +84,7 @@ Skip in this pass (note in a comment why):
 
 ---
 
-## 4. [ ] README (sub-phase 0d)
+## 4. [x] README (sub-phase 0d)
 
 4.1 Write `README.md` at repo root using exactly this structure (no extra sections). Template below — fill the bracketed parts from the actual code/state, do not paraphrase the un-bracketed parts:
 
