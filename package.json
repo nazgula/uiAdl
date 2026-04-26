@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nazgula/uiAdl.git"
+    "url": "git+https://github.com/nazgula/PDL.git"
   },
   "license": "MIT",
   "dependencies": {

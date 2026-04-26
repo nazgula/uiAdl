@@ -34,7 +34,7 @@ Node/Express backend, single-page vanilla JS + Tailwind frontend, Anthropic Clau
 
 ```bash
 git clone <this repo>
-cd uiAdl
+cd PDL
 npm install
 echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
 node server.js
