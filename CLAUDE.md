@@ -17,7 +17,7 @@ specs/
 - Never implement a feature that isn't in the roadmap, or that belongs to a later phase
 - Never violate a constraint in `tech-stack.md` (e.g. don't add TypeScript, don't add a framework)
 - If a task seems to conflict with the specs, flag it — don't resolve it silently
-- The current phase is **Phase 0** — see `specs/roadmap.md` for the full breakdown
+- The current phase is whichever phase in `specs/roadmap.md` has the first unchecked items — read it to find out
 
 ---
 
