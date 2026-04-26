@@ -5,9 +5,9 @@ Priority: ship fast, but fix gross problems before adding features.
 
 ---
 
-## Phase 0 — Gross Issues + Resume Signal (NOW)
+## Phase 0 — Pre-publication Cleanup (NOW)
 
-Get the project into a clean, shareable state. Sub-tasks must run in order.
+Get the project into a clean, shareable state before making the repo public. Sub-tasks must run in order.
 
 ### 0a — Code fixes (before going public)
 - [ ] Fix orphaned reasoning files: `DELETE /api/renders/:project/:id` does not delete `.reasoning.txt`
