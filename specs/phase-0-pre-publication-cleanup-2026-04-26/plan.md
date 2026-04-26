@@ -2,7 +2,7 @@
 
 Each numbered group is a single commit. Run in order — later groups assume earlier ones are clean.
 
-Status: 0a [x], 0b [x], 0c [x], 0d [x], 0e [ ]
+Status: 0a [x], 0b [x], 0c [x], 0d [x], 0e [x]
 
 Legend: `[ ]` pending, `[~]` in progress, `[x]` done. Update both the heading checkbox and this Status line in the same edit when state changes.
 
@@ -139,7 +139,7 @@ The "What I learned" bullets must appear verbatim — directness is the differen
 
 ---
 
-## 5. [ ] Repo metadata + final checklist (sub-phase 0e)
+## 5. [x] Repo metadata + final checklist (sub-phase 0e)
 
 5.1 License.
 - Add `LICENSE` file with MIT text. Year 2026, copyright holder line: project name only (`PDL` or `PSL UI`) — personal tool, no individual name.
