@@ -45,10 +45,6 @@ Single-page app with a thin Express backend. No build step.
 - `PATCH /api/renders/:project/:id` — update rating/note
 - `DELETE /api/renders/:project/:id` — delete render
 
-**`index.html`** — markup + inline `<style>` + Tailwind (CDN). Loads `/app.js` at the end of `<body>`.
-
-**`app.js`** — frontend logic (vanilla JS). Served as a static file. Top-level `function` declarations are global so the inline `onclick=` handlers in the markup keep working.
-
 **`wireframe.css`** — wireframe vocabulary stylesheet served as a static file. Injected at the start of `<head>` in `renderPreview()` so the model's own CSS (which always comes after) overrides it. Defines: `.panel`, `.panel-header`, `.tab-bar`, `.tab`, `.card`, `.card-header`, `.card-body`, `.btn`, `.btn-primary`, `.btn-block`, `.input`, `.select`, `.form-group`, `.upload-area`, `.placeholder`, `.badge`, `.toast`, `.table`, `.modal`, `.hidden`, `.empty-state`, `.loading`, `.score-bar-wrap`, `.score-bar-fill`, `.check-item`, `.scroll-area`.
 
 ## Key frontend state

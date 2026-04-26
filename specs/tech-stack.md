@@ -9,7 +9,7 @@
 
 - **Vanilla JS** — no framework, no bundler, no build step
 - **Tailwind CSS** — loaded from CDN in `index.html`; used only for app UI chrome, never injected into generated wireframes
-- **Single file** — entire frontend lives in `index.html` (markup + logic)
+- **File layout** — `index.html` holds markup + inline `<style>` and loads `/app.js` at the end of `<body>`. `app.js` holds all frontend logic. Both are served as static files; top-level `function` declarations in `app.js` stay global so the inline `onclick=` handlers in the markup keep working.
 
 ## AI
 
