@@ -1,9 +1,3 @@
-// Canned response used by Playwright route() mocks for /api/generate.
-// Mirrors the shape of the real Anthropic Messages API response: a content
-// array of text blocks plus a usage object. The text starts with a <reasoning>
-// block (parsed and stripped by generate() in index.html) followed by a
-// minimal but recognizable HTML wireframe that shows up in #preview-frame.
-
 const CANNED_REASONING = [
   '**Container & Layout:**',
   '- Single panel with header + content area',
@@ -42,9 +36,6 @@ const CANNED_RESPONSE = {
 };
 
 module.exports = {
-  CANNED_REASONING,
-  CANNED_HTML_BODY,
-  CANNED_TEXT,
   CANNED_RESPONSE,
   CANNED_HTML_MARKER: 'CANNED_WIREFRAME_MARKER'
 };
