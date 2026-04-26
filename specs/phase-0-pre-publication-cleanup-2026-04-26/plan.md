@@ -2,7 +2,7 @@
 
 Each numbered group is a single commit. Run in order — later groups assume earlier ones are clean.
 
-Status: 0a [x], 0b [x], 0c [ ], 0d [ ], 0e [ ]
+Status: 0a [x], 0b [x], 0c [x], 0d [ ], 0e [ ]
 
 Legend: `[ ]` pending, `[~]` in progress, `[x]` done. Update both the heading checkbox and this Status line in the same edit when state changes.
 
@@ -48,7 +48,7 @@ Legend: `[ ]` pending, `[~]` in progress, `[x]` done. Update both the heading ch
 
 ---
 
-## 3. [ ] Playwright E2E tests (sub-phase 0c)
+## 3. [x] Playwright E2E tests (sub-phase 0c)
 
 3.1 Install + configure.
 - `npm install -D @playwright/test`
