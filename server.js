@@ -142,8 +142,11 @@ app.patch('/api/renders/:project/:id', (req, res) => {
 
 // ─── Renders: delete ──────────────────────────────────────────
 app.delete('/api/renders/:project/:id', (req, res) => {
-  const file = path.join(rendersDir(req.params.project), req.params.id + '.html');
-  if (fs.existsSync(file)) fs.unlinkSync(file);
+  const dir = rendersDir(req.params.project);
+  const htmlFile = path.join(dir, req.params.id + '.html');
+  const reasoningFile = path.join(dir, req.params.id + '.reasoning.txt');
+  if (fs.existsSync(htmlFile)) fs.unlinkSync(htmlFile);
+  if (fs.existsSync(reasoningFile)) fs.unlinkSync(reasoningFile);
   const meta = readMeta(req.params.project).filter(r => r.id !== req.params.id);
   writeMeta(req.params.project, meta);
   res.json({ ok: true });
