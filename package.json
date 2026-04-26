@@ -1,5 +1,5 @@
 {
-  "name": "uidadl",
+  "name": "pdl",
   "version": "1.0.0",
   "description": "PDL — Project Decision List tool for rapid UI prototyping",
   "main": "server.js",

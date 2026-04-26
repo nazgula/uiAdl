@@ -96,12 +96,16 @@ app.delete('/api/projects/:name', (req, res) => {
 
 // ─── Renders: save ────────────────────────────────────────────
 app.post('/api/renders/:project', (req, res) => {
-  const { html } = req.body;
+  const { html, reasoning } = req.body;
   if (!html) return res.status(400).json({ error: 'No html provided' });
   const id = Date.now().toString();
-  fs.writeFileSync(path.join(rendersDir(req.params.project), id + '.html'), html);
+  const dir = rendersDir(req.params.project);
+  fs.writeFileSync(path.join(dir, id + '.html'), html);
+  if (reasoning) {
+    fs.writeFileSync(path.join(dir, id + '.reasoning.txt'), reasoning);
+  }
   const meta = readMeta(req.params.project);
-  meta.unshift({ id, savedAt: new Date().toISOString(), rating: null });
+  meta.unshift({ id, savedAt: new Date().toISOString(), rating: null, hasReasoning: !!reasoning });
   writeMeta(req.params.project, meta);
   res.json({ ok: true, id });
 });
@@ -116,6 +120,13 @@ app.get('/api/renders/:project/:id', (req, res) => {
   const file = path.join(rendersDir(req.params.project), req.params.id + '.html');
   if (!fs.existsSync(file)) return res.status(404).json({ error: 'Not found' });
   res.type('html').send(fs.readFileSync(file, 'utf8'));
+});
+
+// ─── Renders: get reasoning ───────────────────────────────────
+app.get('/api/renders/:project/:id/reasoning', (req, res) => {
+  const file = path.join(rendersDir(req.params.project), req.params.id + '.reasoning.txt');
+  if (!fs.existsSync(file)) return res.status(404).json({ error: 'Not found' });
+  res.type('text').send(fs.readFileSync(file, 'utf8'));
 });
 
 // ─── Renders: update rating ───────────────────────────────────

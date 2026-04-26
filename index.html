@@ -255,6 +255,7 @@ let editingId = null;
 let decisions = [];
 let project = { name: '', desc: '' };
 let lastHTML = '';
+let lastReasoning = '';
 let activeView = 'render';
 let activeTab = 'decisions';
 
@@ -264,17 +265,40 @@ const MODELS = {
 };
 
 // ─── Project serialization ────────────────────────────────────
-const DEFAULT_PROMPT = `Generate a complete, interactive HTML wireframe based on these project decisions.
+const DEFAULT_PROMPT = `Before writing HTML, plan the structure in a <reasoning> block:
+- Container type and main layout (panel, full-page, modal-driven)
+- Which tabs / pages / states exist and how navigation works between them
+- What data entities need sample values and what they look like
+- Interaction patterns: what triggers what, what shows/hides, what state is tracked
 
-Visual style — Balsamiq-like wireframe:
-- Font: "Comic Sans MS", cursive (gives the hand-drawn sketch feel)
+<reasoning>
+[your structural plan here]
+</reasoning>
+
+Then immediately write the complete HTML.
+
+---
+
+Generate a complete, interactive HTML wireframe based on these project decisions.
+
+Visual style — wireframe (Balsamiq-like):
+- Font: "Comic Sans MS", cursive
 - Colors: black, white, and grays only (#f4f4f4, #ddd, #aaa, #555, #111)
 - No gradients, no shadows, no border-radius, no icons, no images
 - Borders: solid 1-2px #aaa or #333
 - Buttons: plain bordered rectangles with text labels
 - Where an icon would appear, use a bracketed text label: [✕] [+] [≡] [▶]
 - Placeholder images/previews: gray rectangle (#ddd) with a centered label in #888
-- Inputs and selects: plain bordered boxes, no styling beyond border and padding
+- Inputs and selects: plain bordered boxes
+
+Wireframe CSS classes available — use these, do not redefine them:
+- Layout: .panel, .panel-header, .scroll-area
+- Navigation: .tab-bar, .tab, .tab.active
+- Content: .card, .card-header, .card-body
+- Controls: .btn, .btn-primary, .btn-block, .input, .select, .form-group
+- Special: .upload-area, .placeholder, .badge, .toast, .modal, .modal-overlay
+- States: .hidden, .active, .disabled, .empty-state, .loading
+- Data: .score-bar-wrap, .score-bar-fill, .check-item, .table
 
 Functional requirements:
 - Implement every ui element in the PDL as a visible component
@@ -282,9 +306,10 @@ Functional requirements:
 - Every navigation target in the PDL must be reachable
 - Every element with an extended or alternate mode must be togglable
 - Use placeholder content for entities — fake names, sample data — sized to feel real
-- Do not fetch external URLs. Fully self-contained HTML, inline CSS and vanilla JS only
+- Do not fetch external URLs. Fully self-contained HTML, vanilla JS only
+- Do not redefine CSS classes listed above; use them as-is
 
-Return only the HTML. No markdown, no explanation, no code fences.`;
+Return: the <reasoning> block followed immediately by the HTML. No markdown, no code fences.`;
 
 const DEFAULT_REFINE_PROMPT = `Refine the following Project Decision List. Apply these category definitions strictly:
 
@@ -669,13 +694,31 @@ async function generate() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `API error ${res.status}`);
 
-    let html = data.content?.[0]?.text || '';
+    let rawText = data.content?.[0]?.text || '';
+
+    // Extract <reasoning> block if present
+    let reasoning = '';
+    let html = rawText;
+    const reasoningMatch = rawText.match(/^<reasoning>([\s\S]*?)<\/reasoning>\s*/i);
+    if (reasoningMatch) {
+      reasoning = reasoningMatch[1].trim();
+      html = rawText.slice(reasoningMatch[0].length).trim();
+    }
     html = html.replace(/^```(?:html)?\n?/i, '').replace(/\n?```$/i, '').trim();
 
     const truncated = data.stop_reason === 'max_tokens';
     if (truncated) showError('Output was truncated — try Sonnet for larger mockups, or simplify the PDL.');
 
     lastHTML = html;
+    lastReasoning = reasoning;
+
+    if (reasoning) {
+      document.getElementById('analysis-empty').classList.add('hidden');
+      const content = document.getElementById('analysis-content');
+      content.textContent = '[REASONING]\n\n' + reasoning;
+      content.classList.remove('hidden');
+    }
+
     renderPreview(html);
     document.getElementById('source-code').textContent = html;
 
@@ -693,11 +736,30 @@ async function generate() {
   }
 }
 
-function renderPreview(html) {
+async function renderPreview(html) {
   document.getElementById('preview-empty').classList.add('hidden');
   const frame = document.getElementById('preview-frame');
   frame.classList.remove('hidden');
-  frame.srcdoc = html;
+
+  // Prepend wireframe.css to the rendered HTML
+  let css = '';
+  try {
+    const r = await fetch('/wireframe.css');
+    if (r.ok) css = await r.text();
+  } catch(e) { /* degrade gracefully if fetch fails */ }
+
+  let fullHtml = html;
+  if (css) {
+    const styleTag = `<style>\n/* wireframe.css */\n${css}\n</style>`;
+    // Inject at start of <head> so model CSS comes after and overrides the base
+    if (fullHtml.includes('<head>')) {
+      fullHtml = fullHtml.replace('<head>', '<head>\n' + styleTag);
+    } else {
+      fullHtml = styleTag + '\n' + fullHtml;
+    }
+  }
+
+  frame.srcdoc = fullHtml;
   document.getElementById('save-render-btn').classList.remove('hidden');
   if (activeView !== 'render') setView('render');
 }
@@ -797,7 +859,7 @@ async function saveRender() {
     const res = await fetch(`/api/renders/${projectSlug()}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ html: lastHTML })
+      body: JSON.stringify({ html: lastHTML, reasoning: lastReasoning })
     });
     if (!res.ok) throw new Error('Save failed');
     btn.textContent = 'Saved!';
@@ -831,6 +893,8 @@ async function loadHistory() {
         <span class="${ratingClass} text-xs w-12 text-center">
           ${r.rating === 'good' ? 'good' : r.rating === 'bad' ? 'bad' : '—'}
         </span>
+        ${r.hasReasoning ? `<button onclick="viewReasoning('${slug}','${r.id}')" title="View reasoning"
+          class="text-xs px-2 py-1 rounded border border-gray-200 hover:border-indigo-300 hover:text-indigo-500 transition text-gray-400">R</button>` : ''}
         <button onclick="rateRender('${slug}','${r.id}','good')" title="Good"
           class="text-xs px-2 py-1 rounded border border-gray-200 hover:border-green-400 hover:text-green-600 transition ${r.rating==='good'?'border-green-400 text-green-600':'text-gray-400'}">✓</button>
         <button onclick="rateRender('${slug}','${r.id}','bad')" title="Bad"
@@ -846,8 +910,20 @@ async function viewRender(slug, id) {
   const res  = await fetch(`/api/renders/${slug}/${id}`);
   const html = await res.text();
   lastHTML = html;
+  lastReasoning = '';
   document.getElementById('source-code').textContent = html;
   renderPreview(html);
+}
+
+async function viewReasoning(slug, id) {
+  const res = await fetch(`/api/renders/${slug}/${id}/reasoning`);
+  if (!res.ok) return;
+  const text = await res.text();
+  document.getElementById('analysis-empty').classList.add('hidden');
+  const content = document.getElementById('analysis-content');
+  content.textContent = '[REASONING]\n\n' + text;
+  content.classList.remove('hidden');
+  setView('analysis');
 }
 
 async function rateRender(slug, id, rating) {
