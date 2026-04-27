@@ -23,10 +23,11 @@ specs/
 
 ## Workflow skills
 
-Phase work is driven by two slash commands:
+Phase work is driven by three slash commands, used in order:
 
-- **`/next-phase`** (`.claude/skills/next-phase/SKILL.md`) — start a new phase: create a phase folder under `specs/<name>-<YYYY-MM-DD>/` with `requirements.md`, `plan.md`, `validation.md`; cut a branch.
-- **`/finish-phase`** (`.claude/skills/finish-phase/SKILL.md`) — close a phase: verify completion, mark roadmap, update `CHANGELOG.md`, merge to main with `--no-ff`, delete the branch.
+- **`/next-phase`** (`.claude/skills/next-phase/SKILL.md`) — start a new phase: read the constitution, ask only the gap-filling questions needed to draft the spec, write `requirements.md` / `plan.md` / `validation.md` under `specs/<name>-<YYYY-MM-DD>/`, cut a branch.
+- **`/finish-phase`** (`.claude/skills/finish-phase/SKILL.md`) — close a phase: verify completion, mark roadmap, update `specs/architecture.md` (and `tech-stack.md` only if changed), update `CHANGELOG.md`, merge to main with `--no-ff`, delete the branch.
+- **`/replan`** (`.claude/skills/replan/SKILL.md`) — between phases, after `/finish-phase` and before `/next-phase`: confirm the planned next phase is still right. Default outcome is "no change, proceed." If priorities shifted, edit `roadmap.md` and commit a `Replan:` change.
 
 The skill files are the source of truth for each workflow. Do not duplicate their contents here.
 
