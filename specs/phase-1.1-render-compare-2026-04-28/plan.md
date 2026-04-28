@@ -49,12 +49,12 @@ Status: 1 [x], 2 [x], 3 [x], 4 [x], 5 [x], 6 [x], 7 [x]
   - Open three saved renders into tabs; switch between them; verify each tab's Preview/Source/Reasoning is preserved independently.
   - Generate → live tab appears guarded; close X triggers confirm; cancel keeps tab.
   - Generate twice → previous live demotes, new live is guarded.
-  - Check two tabs → enter compare mode → both columns visible → switch one column's view to Source while other stays on Preview.
+  - Check two tabs → pair auto-locks → click a paired tab → both columns visible → top toolbar Source switches both at once → click non-paired tab → split disappears → uncheck → pair dissolves.
   - Rename a saved render → tab label and History row both update.
 - Update `specs/architecture.md`:
   - Replace Frontend State block (singletons → `tabs[]` + `activeTabId`).
   - Add "Tabs" subsection describing live/unsaved/saved kinds and the close-guard.
-  - Add "Compare mode" subsection (N-column layout, per-column view toggle).
+  - Add "Compare pair (locked split)" subsection (2-column split tied to active-tab focus, top-toolbar drives both columns).
   - Update "Render-area hierarchy" invariant: lockstep is *within each tab*.
   - `meta.json` row format gains `name`.
   - Backend route note: `PATCH /api/renders/:project/:id` now accepts `name` (in addition to existing rating/note).
