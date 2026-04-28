@@ -104,7 +104,7 @@ test('rating a saved render good marks the row good', async ({ page }) => {
   await expect(row).toContainText('good');
 });
 
-test('clicking R on a saved render shows reasoning in the Reasoning view', async ({ page }) => {
+test('a saved render with reasoning shows a non-button R indicator in History', async ({ page }) => {
   await mockGenerate(page);
   await addDecisionViaUI(page, 'flow', 'Open detail');
 
@@ -113,12 +113,29 @@ test('clicking R on a saved render shows reasoning in the Reasoning view', async
   await page.click('#save-render-btn');
 
   const row = page.locator('#history-list > div').first();
-  await row.locator('button[title="View reasoning"]').click();
+  const indicator = row.locator('span[title="Has reasoning"]');
+  await expect(indicator).toBeVisible();
+  await expect(indicator).toHaveText('R');
+  // It's a label, not a clickable link
+  await expect(row.locator('button[title="View reasoning"]')).toHaveCount(0);
+});
 
-  const content = page.locator('#reasoning-content');
-  await expect(content).toBeVisible();
-  await expect(content).toContainText('[REASONING]');
-  await expect(content).toContainText('Container & Layout');
+test('Save Render is single-use per generation', async ({ page }) => {
+  await mockGenerate(page);
+  await addDecisionViaUI(page, 'ui', 'OneShotSave');
+
+  await page.click('#generate-btn');
+  const saveBtn = page.locator('#save-render-btn');
+  await expect(saveBtn).not.toHaveClass(/hidden/);
+  await saveBtn.click();
+
+  // After a successful save, the button hides — no re-saves possible
+  await expect(saveBtn).toHaveClass(/hidden/);
+
+  // Generating again brings the button back for the new render
+  await page.click('#view-render');
+  await page.click('#generate-btn');
+  await expect(saveBtn).not.toHaveClass(/hidden/);
 });
 
 test('selecting a render from History auto-syncs Reasoning to that render', async ({ page }) => {

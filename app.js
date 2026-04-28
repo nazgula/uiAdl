@@ -236,31 +236,37 @@ function renderDecisions() {
   }
 
   const cats = ['entity','flow','ui','constraint'];
+  const catOptions = ['flow','ui','constraint'];
   list.innerHTML = cats.map(cat => {
     const group = decisions.filter(d => d.category === cat);
     if (!group.length) return '';
     return `<div class="mb-3">
       <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1 px-1">${cat}</div>
-      ${group.map(d => `
-        <div class="decision-row flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer group"
+      ${group.map(d => {
+        const opts = catOptions.includes(d.category) ? catOptions : [d.category, ...catOptions];
+        return `
+        <div class="decision-row group px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer space-y-1"
              onclick="toggleDecision(${d.id})">
-          <input type="checkbox" ${d.active ? 'checked' : ''} onclick="event.stopPropagation();toggleDecision(${d.id})"
-            class="w-3.5 h-3.5 rounded accent-indigo-600 cursor-pointer flex-shrink-0" />
-          <span class="text-sm flex-1 ${d.active ? 'text-gray-800' : 'text-gray-400 line-through'} hover:text-indigo-600 cursor-text"
-            onclick="event.stopPropagation();startEdit(${d.id}, this)">${escHtml(d.text)}</span>
-          <select class="delete-btn text-xs border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-600 cursor-pointer"
+          <select class="text-[10px] uppercase tracking-wide border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-500 cursor-pointer w-fit"
             onclick="event.stopPropagation()" onchange="changeCategory(${d.id}, this.value)">
-            ${['entity','flow','ui','constraint'].map(c =>
-              `<option value="${c}" ${c === cat ? 'selected' : ''}>${c}</option>`
+            ${opts.map(c =>
+              `<option value="${c}" ${c === d.category ? 'selected' : ''}>${c}</option>`
             ).join('')}
           </select>
-          <button class="delete-btn text-gray-300 hover:text-red-400 transition flex-shrink-0"
-            onclick="event.stopPropagation();deleteDecision(${d.id})" title="Delete">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>`).join('')}
+          <div class="flex items-center gap-2">
+            <input type="checkbox" ${d.active ? 'checked' : ''} onclick="event.stopPropagation();toggleDecision(${d.id})"
+              class="w-3.5 h-3.5 rounded accent-indigo-600 cursor-pointer flex-shrink-0" />
+            <span class="text-sm flex-1 ${d.active ? 'text-gray-800' : 'text-gray-400 line-through'} hover:text-indigo-600 cursor-text"
+              onclick="event.stopPropagation();startEdit(${d.id}, this)">${escHtml(d.text)}</span>
+            <button class="delete-btn text-gray-300 hover:text-red-400 transition flex-shrink-0"
+              onclick="event.stopPropagation();deleteDecision(${d.id})" title="Delete">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>`;
+      }).join('')}
     </div>`;
   }).join('');
 }
@@ -411,6 +417,11 @@ async function generate() {
     renderPreview(html);
     document.getElementById('source-code').textContent = html;
 
+    const saveBtn = document.getElementById('save-render-btn');
+    saveBtn.textContent = 'Save Render';
+    saveBtn.disabled = false;
+    saveBtn.classList.remove('hidden');
+
     const inTok  = data.usage?.input_tokens  || 0;
     const outTok = data.usage?.output_tokens || 0;
     const m = MODELS[model];
@@ -449,7 +460,6 @@ async function renderPreview(html) {
   }
 
   frame.srcdoc = fullHtml;
-  document.getElementById('save-render-btn').classList.remove('hidden');
   if (activeView !== 'render') setView('render');
 }
 
@@ -477,6 +487,8 @@ function projectSlug() {
 
 async function saveRender() {
   const btn = document.getElementById('save-render-btn');
+  if (btn.disabled) return;
+  btn.disabled = true;
   btn.textContent = 'Saving…';
   try {
     const res = await fetch(`/api/renders/${projectSlug()}`, {
@@ -485,10 +497,11 @@ async function saveRender() {
       body: JSON.stringify({ html: lastHTML, reasoning: lastReasoning })
     });
     if (!res.ok) throw new Error('Save failed');
-    btn.textContent = 'Saved!';
-    setTimeout(() => { btn.textContent = 'Save Render'; }, 1500);
+    btn.classList.add('hidden');
+    btn.textContent = 'Save Render';
     setView('history');
   } catch(e) {
+    btn.disabled = false;
     btn.textContent = 'Save Render';
     showError(e.message);
   }
@@ -516,8 +529,8 @@ async function loadHistory() {
         <span class="${ratingClass} text-xs w-12 text-center">
           ${r.rating === 'good' ? 'good' : r.rating === 'bad' ? 'bad' : '—'}
         </span>
-        ${r.hasReasoning ? `<button onclick="viewReasoning('${slug}','${r.id}')" title="View reasoning"
-          class="text-xs px-2 py-1 rounded border border-gray-200 hover:border-indigo-300 hover:text-indigo-500 transition text-gray-400">R</button>` : ''}
+        ${r.hasReasoning ? `<span title="Has reasoning"
+          class="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-500 font-medium">R</span>` : ''}
         <button onclick="rateRender('${slug}','${r.id}','good')" title="Good"
           class="text-xs px-2 py-1 rounded border border-gray-200 hover:border-green-400 hover:text-green-600 transition ${r.rating==='good'?'border-green-400 text-green-600':'text-gray-400'}">✓</button>
         <button onclick="rateRender('${slug}','${r.id}','bad')" title="Bad"
@@ -535,6 +548,7 @@ async function viewRender(slug, id) {
   lastHTML = html;
   document.getElementById('source-code').textContent = html;
   renderPreview(html);
+  document.getElementById('save-render-btn').classList.add('hidden');
 
   // Auto-sync reasoning panel to this render
   try {
@@ -551,18 +565,6 @@ async function viewRender(slug, id) {
     lastReasoning = '';
     showReasoning('', 'No reasoning saved for this render.');
   }
-}
-
-async function viewReasoning(slug, id) {
-  const res = await fetch(`/api/renders/${slug}/${id}/reasoning`);
-  if (!res.ok) {
-    showReasoning('', 'No reasoning saved for this render.');
-    setView('reasoning');
-    return;
-  }
-  const text = await res.text();
-  showReasoning('[REASONING]\n\n' + text, 'No reasoning saved for this render.');
-  setView('reasoning');
 }
 
 async function rateRender(slug, id, rating) {
