@@ -59,38 +59,38 @@ Get the project into a clean, shareable state before making the repo public. Sub
 
 ---
 
-## Phase 1 — UI Cleanup (NEXT)
+## Phase 1 — UI Cleanup
 
 Reduce surface area before the reasoning loop. Remove unused capabilities and tighten the render-area hierarchy so future phases build on a smaller, clearer foundation.
 
 ### 1a — Remove Refine PDL
-- [ ] Delete the "Refine Prompt" tab (button + panel) from the left panel
-- [ ] Delete `refinePDL()`, `setRefineLoading()`, `DEFAULT_REFINE_PROMPT`, and the `refinePrompt` field from saved/loaded project data
-- [ ] Update project file schema in `architecture.md` to drop `refinePrompt`
+- [x] Delete the "Refine Prompt" tab (button + panel) from the left panel
+- [x] Delete `refinePDL()`, `setRefineLoading()`, `DEFAULT_REFINE_PROMPT`, and the `refinePrompt` field from saved/loaded project data
+- [x] Update project file schema in `architecture.md` to drop `refinePrompt`
 
 ### 1b — Remove Load-from-URL
-- [ ] Delete the URL modal markup and related top-bar button
-- [ ] Delete `openUrlModal`, `closeUrlModal`, `loadFromUrl` from `app.js`
-- [ ] Delete `POST /api/load-url` from `server.js`
+- [x] Delete the URL modal markup and related top-bar button
+- [x] Delete `openUrlModal`, `closeUrlModal`, `loadFromUrl` from `app.js`
+- [x] Delete `POST /api/load-url` from `server.js`
 
 ### 1c — Render-area hierarchy fix
-- [ ] **Behavior**: when a render is selected from History, the Reasoning view auto-syncs to *that* render's reasoning (no more stale refine/last-render content while viewing a different render)
-- [ ] **Visual**: regroup view buttons so the hierarchy reads as "**Render** [Preview | Source | Reasoning] · History" — Preview/Source/Reasoning are aspects of one render; History is a separate axis
-- [ ] Rename the "Analysis" view button to "Reasoning" (its only remaining content type after refine is gone)
-- [ ] Move "Copy HTML" into the **Source** view as an icon button in the top-right of the source area
+- [x] **Behavior**: when a render is selected from History, the Reasoning view auto-syncs to *that* render's reasoning (no more stale refine/last-render content while viewing a different render)
+- [x] **Visual**: regroup view buttons so the hierarchy reads as "**Render** [Preview | Source | Reasoning] · History" — Preview/Source/Reasoning are aspects of one render; History is a separate axis
+- [x] Rename the "Analysis" view button to "Reasoning" (its only remaining content type after refine is gone)
+- [x] Move "Copy HTML" into the **Source** view as an icon button in the top-right of the source area
 
 ### 1d — Decision-type cleanup
-- [ ] Remove "entity" from the new-decision category `<select>` and remove `.category-entity` CSS
-- [ ] Restack the add-decision form: type select **above** the textarea instead of beside it, so the textarea gets full width
-- [ ] No data migration — "entity" was never used in any saved project
+- [x] Remove "entity" from the new-decision category `<select>` and remove `.category-entity` CSS
+- [x] Restack the add-decision form: type select **above** the textarea instead of beside it, so the textarea gets full width
+- [x] No data migration — "entity" was never used in any saved project
 
 ### 1e — Tests + architecture doc
-- [ ] Update Playwright E2E tests: remove tests covering refine/load-url; add a test for the History→Reasoning auto-sync behavior
-- [ ] Update `specs/architecture.md`: drop refine/load-url from the route inventory, drop `refinePrompt` from the project file format, document the new render-area hierarchy as an invariant
+- [x] Update Playwright E2E tests: remove tests covering refine/load-url; add a test for the History→Reasoning auto-sync behavior
+- [x] Update `specs/architecture.md`: drop refine/load-url from the route inventory, drop `refinePrompt` from the project file format, document the new render-area hierarchy as an invariant
 
 ---
 
-## Phase 2 — Reasoning Quality Loop
+## Phase 2 — Reasoning Quality Loop (NEXT)
 
 Make reasoning useful as a learning signal, not just a log.
 
