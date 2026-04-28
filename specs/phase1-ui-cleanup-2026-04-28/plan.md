@@ -1,8 +1,8 @@
 # Phase 1 — Plan
 
-Status: 1 [ ], 2 [ ], 3 [ ], 4 [ ], 5 [ ]
+Status: 1 [x], 2 [x], 3 [x], 4 [x], 5 [x]
 
-## 1. [ ] Remove Refine PDL
+## 1. [x] Remove Refine PDL
 
 - `index.html`: delete the `tab-refine` button (≈line 99) and the `panel-refine` block (≈lines 153–183), including the `refine-prompt-text` textarea, reset link, refine button, spinner, and label.
 - `app.js`:
@@ -14,13 +14,13 @@ Status: 1 [ ], 2 [ ], 3 [ ], 4 [ ], 5 [ ]
   - Remove the `refine-btn` line in `setLoading()`.
 - Drop `refinePrompt` from any default-project initialization in `app.js` (only the field — leave older saved JSON files alone).
 
-## 2. [ ] Remove Load-from-URL
+## 2. [x] Remove Load-from-URL
 
 - `index.html`: delete the `#url-modal` block (≈lines 26+) and the top-bar Load-from-URL button (≈line 57).
 - `app.js`: delete `openUrlModal()`, `closeUrlModal()`, and `loadFromUrl()` (≈lines 162–200).
 - `server.js`: delete the `POST /api/load-url` handler.
 
-## 3. [ ] Render-area hierarchy fix
+## 3. [x] Render-area hierarchy fix
 
 - Markup: regroup the button row in `index.html` (≈lines 191–204) so it reads `Render [ Preview | Source | Reasoning ] · History`. Use a small visual separator (e.g. a `·` span or a thin divider) between the Render group and History.
 - Rename ids: `view-analysis` → `view-reasoning`, `preview-analysis` → `preview-reasoning`, `analysis-empty` → `reasoning-empty`, `analysis-content` → `reasoning-content`. Update every reference in `app.js` (search for `analysis`).
@@ -30,13 +30,13 @@ Status: 1 [ ], 2 [ ], 3 [ ], 4 [ ], 5 [ ]
 - Auto-sync Reasoning view: in `viewRender(id)` (the History row click handler), also fetch `/api/renders/:project/:id/reasoning` and write the result into `lastReasoning` plus the `#reasoning-content` element. If the response is empty or 404 (older renders without reasoning), show the empty state with copy "No reasoning saved for this render."
 - The "currently-viewed render" model: any time `lastHTML` is replaced (fresh generation, History selection), the Reasoning panel content is updated in lockstep. Document this lockstep as the new invariant — record it in the plan's Architecture impact section so it lands in `architecture.md` at finish-phase time.
 
-## 4. [ ] Decision-type cleanup
+## 4. [x] Decision-type cleanup
 
 - `index.html`: remove the `<option value="entity">` from `#new-category` (≈line 108) and remove the `.category-entity` CSS rule (line 10). The default selected option becomes `flow`.
 - Restack the add-decision form so the type `<select>` sits above the `<textarea>` rather than beside it; remove any flex-row container that paired them and let the textarea span full width.
 - No data migration. Saved decisions with `category: "entity"` continue to render with no category color — acceptable, no project in `projects/` actually uses the value.
 
-## 5. [ ] Tests + architecture doc
+## 5. [x] Tests + architecture doc
 
 - `tests/e2e/core-flows.spec.js` currently has no refine or load-url coverage (verified) — nothing to delete. If existing tests break because of the Analysis→Reasoning rename or the regrouped button row, update the selectors in place.
 - Add a Playwright test for History→Reasoning auto-sync:

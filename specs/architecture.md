@@ -11,7 +11,6 @@ Single-page app with a thin Express backend. No build step. The frontend talks t
 Express app with two responsibilities: proxy the Anthropic API (so the API key never reaches the browser) and CRUD the on-disk project / render data.
 
 - `POST /api/generate` — Anthropic proxy. Forwards the request body to the Messages API and returns the raw response. API key read from `.env`.
-- `POST /api/load-url` — server-side fetch of a remote JSON project file. Avoids browser CORS.
 - `GET /api/projects/:name`, `POST /api/projects/:name`, `DELETE /api/projects/:name` — JSON files in `projects/`.
 - `POST /api/renders/:project` — saves a render. Accepts `{ html, reasoning }`. Stores `{id}.html` and `{id}.reasoning.txt` in `renders/{slug}/`. Updates `meta.json` (id, savedAt, rating, hasReasoning).
 - `GET /api/renders/:project` — returns the meta array for a project.
@@ -40,7 +39,11 @@ State lives in module-scope variables in `app.js`. Persistence is via `localStor
 
 ### Reasoning block
 
-`DEFAULT_PROMPT` instructs the model to write `<reasoning>...</reasoning>` before the HTML. `generate()` parses this out: saves reasoning to `lastReasoning`, strips it from the HTML before rendering, and shows it in the Analysis tab. When saving a render, `lastReasoning` is sent to the server and stored as `{id}.reasoning.txt`. History rows show an **R** button on renders that have saved reasoning; clicking it calls `viewReasoning()` which loads the text into the Analysis view.
+`DEFAULT_PROMPT` instructs the model to write `<reasoning>...</reasoning>` before the HTML. `generate()` parses this out: saves reasoning to `lastReasoning`, strips it from the HTML before rendering, and shows it in the Reasoning view. When saving a render, `lastReasoning` is sent to the server and stored as `{id}.reasoning.txt`. History rows show an **R** button on renders that have saved reasoning; clicking it calls `viewReasoning()` which loads the text into the Reasoning view.
+
+### Render-area hierarchy
+
+The right pane button row reads `Render [ Preview | Source | Reasoning ] · History`. Preview, Source, and Reasoning are three aspects of one currently-viewed render; History is a separate axis (which render). **Lockstep invariant**: Preview, Source, and Reasoning always reflect the same render. A History selection (`viewRender`) updates `lastHTML`, `source-code`, the iframe preview, *and* the reasoning panel together — they cannot drift. If a saved render has no `.reasoning.txt`, the Reasoning panel shows "No reasoning saved for this render." rather than stale content.
 
 ### Prompt construction
 
@@ -70,11 +73,12 @@ The file is a base layer the model can override. See `roadmap.md` "Deferred" for
   "name": "...",
   "desc": "...",
   "prompt": "...",
-  "refinePrompt": "...",
   "decisions": [
-    { "id": 1234, "text": "...", "category": "entity|flow|ui|constraint", "active": true }
+    { "id": 1234, "text": "...", "category": "flow|ui|constraint", "active": true }
   ]
 }
 ```
+
+Older project files may contain a `refinePrompt` field or decisions with `category: "entity"` — both are ignored by the current UI. No migration step rewrites them.
 
 Stored at `projects/{slug}.json` where slug is the project name lowercased with `[^a-z0-9_-]` replaced by `_`. The same slug rule is used for `renders/{slug}/`.

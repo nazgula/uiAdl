@@ -60,52 +60,11 @@ Functional requirements:
 
 Return: the <reasoning> block followed immediately by the HTML. No markdown, no code fences.`;
 
-const DEFAULT_REFINE_PROMPT = `Refine the following Project Decision List. Apply these category definitions strictly:
-
-- entity: a data model the app works with (User, File, CV, Project, Tag). Named nouns.
-- flow: a user journey or process. Must include action gates — what triggers it, branch conditions, and outcomes. Format: "Trigger → step → [condition] outcome / [invalid] outcome"
-- ui: a specific named interface component (UploadButton, FileCardGrid, PreviewPanel, SideNav, EmptyState, Toast). Not visual style, not vague descriptions — concrete component names.
-- constraint: a rule or limitation explicitly stated in the decisions. Do not invent new ones.
-
-What to do:
-- Rewrite vague ui entries as specific named components
-- Add action gates to flows that lack them
-- Move miscategorized decisions to the correct category
-- Surface ui components and entities clearly implied by flows (e.g. "upload → show card" implies UploadButton and FileCard)
-
-What not to do:
-- Do not invent constraints
-- Do not ask questions
-- Do not add decisions not implied by what is already listed
-- Do not redesign — only clarify and complete
-
-Return two sections:
-
-1. CHANGES — a brief note on each change made
-
-2. REFINED PDL — the full refined list in this exact format (copy-paste ready):
-
-[ENTITY]
-- decision
-- decision
-
-[FLOW]
-- decision
-- decision
-
-[UI]
-- decision
-- decision
-
-[CONSTRAINT]
-- decision`;
-
 function projectToJSON() {
   return {
     name: document.getElementById('project-name').value,
     desc: document.getElementById('project-desc').value,
     prompt: document.getElementById('prompt-text').value,
-    refinePrompt: document.getElementById('refine-prompt-text').value,
     decisions
   };
 }
@@ -116,7 +75,6 @@ function loadProjectData(data) {
   document.getElementById('project-name').value = project.name;
   document.getElementById('project-desc').value = project.desc;
   document.getElementById('prompt-text').value = data.prompt || DEFAULT_PROMPT;
-  document.getElementById('refine-prompt-text').value = data.refinePrompt || DEFAULT_REFINE_PROMPT;
   autosave();
   renderDecisions();
   updateCostEstimate();
@@ -156,41 +114,6 @@ document.getElementById('load-file').addEventListener('change', function(e) {
   };
   reader.readAsText(file);
   e.target.value = '';
-});
-
-// ─── Load from URL ────────────────────────────────────────────
-function openUrlModal() {
-  document.getElementById('url-modal').classList.remove('hidden');
-  document.getElementById('url-input').focus();
-}
-function closeUrlModal() {
-  document.getElementById('url-modal').classList.add('hidden');
-  document.getElementById('url-input').value = '';
-  document.getElementById('url-error').classList.add('hidden');
-}
-async function loadFromUrl() {
-  const url = document.getElementById('url-input').value.trim();
-  if (!url) return;
-  const errEl = document.getElementById('url-error');
-  errEl.classList.add('hidden');
-  try {
-    const res = await fetch('/api/load-url', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ url })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to load');
-    loadProjectData(data);
-    closeUrlModal();
-  } catch(err) {
-    errEl.textContent = err.message;
-    errEl.classList.remove('hidden');
-  }
-}
-document.getElementById('url-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') loadFromUrl();
-  if (e.key === 'Escape') closeUrlModal();
 });
 
 // ─── Model switcher ───────────────────────────────────────────
@@ -377,8 +300,6 @@ function resetPrompt(which) {
   if (which === 'gen') {
     document.getElementById('prompt-text').value = DEFAULT_PROMPT;
     updatePromptPreview();
-  } else {
-    document.getElementById('refine-prompt-text').value = DEFAULT_REFINE_PROMPT;
   }
   autosave();
 }
@@ -386,7 +307,7 @@ function resetPrompt(which) {
 // ─── Tabs ─────────────────────────────────────────────────────
 function showTab(tab) {
   activeTab = tab;
-  const tabs = ['decisions', 'prompt', 'refine'];
+  const tabs = ['decisions', 'prompt'];
   tabs.forEach(t => {
     const panel = document.getElementById('panel-' + t);
     panel.classList.toggle('hidden', t !== tab);
@@ -401,24 +322,48 @@ function showTab(tab) {
 // ─── Preview views ────────────────────────────────────────────
 function setView(v) {
   activeView = v;
-  const views = ['render', 'source', 'analysis', 'history'];
+  const views = ['render', 'source', 'reasoning', 'history'];
   views.forEach(name => {
     document.getElementById('preview-' + name).classList.toggle('hidden', name !== v);
     if (name === 'render') document.getElementById('preview-render').classList.toggle('flex', v === 'render');
     const btn = document.getElementById('view-' + name);
-    if (btn) btn.className = 'text-xs px-3 py-1 rounded font-medium transition ' +
-      (name === v ? 'bg-gray-100 text-gray-600' : 'text-gray-400 hover:bg-gray-200');
+    if (!btn) return;
+    const isHistory = name === 'history';
+    if (isHistory) {
+      btn.className = 'text-xs px-3 py-1 rounded font-medium transition ' +
+        (v === 'history' ? 'bg-gray-100 text-gray-700' : 'text-gray-500 hover:bg-gray-200');
+    } else {
+      btn.className = 'text-xs px-3 py-1 rounded font-medium transition ' +
+        (v === name ? 'bg-white shadow-sm text-gray-700' : 'text-gray-500 hover:bg-gray-200');
+    }
   });
   if (v === 'history') loadHistory();
 }
 
 function copySource() {
   if (!lastHTML) return;
+  const btn = document.getElementById('source-copy-btn');
   navigator.clipboard.writeText(lastHTML).then(() => {
-    const btn = event.target;
-    btn.textContent = 'Copied!';
-    setTimeout(() => btn.textContent = 'Copy HTML', 1500);
+    if (!btn) return;
+    btn.classList.add('text-green-600', 'border-green-300');
+    setTimeout(() => btn.classList.remove('text-green-600', 'border-green-300'), 1200);
   });
+}
+
+function showReasoning(text, emptyMsg) {
+  const empty = document.getElementById('reasoning-empty');
+  const content = document.getElementById('reasoning-content');
+  const msg = document.getElementById('reasoning-empty-msg');
+  if (text && text.trim()) {
+    empty.classList.add('hidden');
+    content.textContent = text;
+    content.classList.remove('hidden');
+  } else {
+    content.classList.add('hidden');
+    content.textContent = '';
+    empty.classList.remove('hidden');
+    if (msg) msg.textContent = emptyMsg || 'No reasoning yet — generate a render to see one.';
+  }
 }
 
 // ─── Generate ─────────────────────────────────────────────────
@@ -461,12 +406,7 @@ async function generate() {
     lastHTML = html;
     lastReasoning = reasoning;
 
-    if (reasoning) {
-      document.getElementById('analysis-empty').classList.add('hidden');
-      const content = document.getElementById('analysis-content');
-      content.textContent = '[REASONING]\n\n' + reasoning;
-      content.classList.remove('hidden');
-    }
+    showReasoning(reasoning ? '[REASONING]\n\n' + reasoning : '');
 
     renderPreview(html);
     document.getElementById('source-code').textContent = html;
@@ -515,74 +455,8 @@ async function renderPreview(html) {
 
 function setLoading(on) {
   document.getElementById('generate-btn').disabled = on;
-  document.getElementById('refine-btn').disabled = on;
   document.getElementById('spinner').classList.toggle('hidden', !on);
   document.getElementById('generate-label').textContent = on ? 'Generating…' : 'Generate UI';
-}
-
-// ─── Refine PDL ───────────────────────────────────────────────
-async function refinePDL() {
-  if (!decisions.length) { showError('Add some decisions first.'); return; }
-
-  setRefineLoading(true);
-  hideError();
-
-  const refinePrompt = document.getElementById('refine-prompt-text').value.trim();
-  const name = document.getElementById('project-name').value.trim();
-  const desc = document.getElementById('project-desc').value.trim();
-
-  let context = '';
-  if (name) context += `Project: ${name}\n`;
-  if (desc) context += `${desc}\n`;
-  context += '\n';
-
-  const grouped = ['entity','flow','ui','constraint'].map(cat => {
-    const items = decisions.filter(d => d.category === cat);
-    if (!items.length) return '';
-    return `[${cat.toUpperCase()}]\n${items.map(d => (d.active ? '✓' : '○') + ' ' + d.text).join('\n')}`;
-  }).filter(Boolean).join('\n\n');
-
-  const fullMessage = `${refinePrompt}\n\n## Current PDL\n\n${context}${grouped}`;
-
-  try {
-    const res = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: MODELS[model].id,
-        max_tokens: 4096,
-        messages: [{ role: 'user', content: fullMessage }]
-      })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `API error ${res.status}`);
-
-    const text = data.content?.[0]?.text || '';
-    document.getElementById('analysis-empty').classList.add('hidden');
-    const content = document.getElementById('analysis-content');
-    content.textContent = text;
-    content.classList.remove('hidden');
-    setView('analysis');
-
-    const inTok  = data.usage?.input_tokens  || 0;
-    const outTok = data.usage?.output_tokens || 0;
-    const m = MODELS[model];
-    const cost = (inTok / 1e6 * m.inputPer1M) + (outTok / 1e6 * m.outputPer1M);
-    document.getElementById('cost-val').textContent = cost.toFixed(4);
-    document.getElementById('cost-badge').classList.remove('hidden');
-
-  } catch(err) {
-    showError(err.message);
-  } finally {
-    setRefineLoading(false);
-  }
-}
-
-function setRefineLoading(on) {
-  document.getElementById('generate-btn').disabled = on;
-  document.getElementById('refine-btn').disabled = on;
-  document.getElementById('refine-spinner').classList.toggle('hidden', !on);
-  document.getElementById('refine-label').textContent = on ? 'Analyzing…' : 'Refine PDL';
 }
 
 function showError(msg) {
@@ -659,20 +533,36 @@ async function viewRender(slug, id) {
   const res  = await fetch(`/api/renders/${slug}/${id}`);
   const html = await res.text();
   lastHTML = html;
-  lastReasoning = '';
   document.getElementById('source-code').textContent = html;
   renderPreview(html);
+
+  // Auto-sync reasoning panel to this render
+  try {
+    const r = await fetch(`/api/renders/${slug}/${id}/reasoning`);
+    if (r.ok) {
+      const text = await r.text();
+      lastReasoning = text;
+      showReasoning(text ? '[REASONING]\n\n' + text : '', 'No reasoning saved for this render.');
+    } else {
+      lastReasoning = '';
+      showReasoning('', 'No reasoning saved for this render.');
+    }
+  } catch(e) {
+    lastReasoning = '';
+    showReasoning('', 'No reasoning saved for this render.');
+  }
 }
 
 async function viewReasoning(slug, id) {
   const res = await fetch(`/api/renders/${slug}/${id}/reasoning`);
-  if (!res.ok) return;
+  if (!res.ok) {
+    showReasoning('', 'No reasoning saved for this render.');
+    setView('reasoning');
+    return;
+  }
   const text = await res.text();
-  document.getElementById('analysis-empty').classList.add('hidden');
-  const content = document.getElementById('analysis-content');
-  content.textContent = '[REASONING]\n\n' + text;
-  content.classList.remove('hidden');
-  setView('analysis');
+  showReasoning('[REASONING]\n\n' + text, 'No reasoning saved for this render.');
+  setView('reasoning');
 }
 
 async function rateRender(slug, id, rating) {
@@ -694,10 +584,8 @@ const saved = localStorage.getItem('pdl_state');
 if (saved) {
   try { loadProjectData(JSON.parse(saved)); } catch(e) {
     document.getElementById('prompt-text').value = DEFAULT_PROMPT;
-    document.getElementById('refine-prompt-text').value = DEFAULT_REFINE_PROMPT;
   }
 } else {
   document.getElementById('prompt-text').value = DEFAULT_PROMPT;
-  document.getElementById('refine-prompt-text').value = DEFAULT_REFINE_PROMPT;
 }
 updatePromptPreview();
