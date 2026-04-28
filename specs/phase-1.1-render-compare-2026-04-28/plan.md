@@ -1,8 +1,8 @@
 # Plan — Render Compare
 
-Status: 1 [ ], 2 [ ], 3 [ ], 4 [ ], 5 [ ], 6 [ ], 7 [ ]
+Status: 1 [x], 2 [x], 3 [x], 4 [x], 5 [x], 6 [x], 7 [x]
 
-## 1. [ ] Per-tab state model + tab strip scaffolding
+## 1. [x] Per-tab state model + tab strip scaffolding
 
 - Replace singleton `lastHTML` / `lastReasoning` / `activeView` with a `tabs[]` array and an `activeTabId`.
 - Each tab carries: `id` (local, e.g. timestamp), `kind` ('live' | 'saved'), `renderId` (saved id or null), `name`, `html`, `reasoning`, `view` ('preview' | 'source' | 'reasoning'), `compareChecked` (bool).
@@ -10,37 +10,37 @@ Status: 1 [ ], 2 [ ], 3 [ ], 4 [ ], 5 [ ], 6 [ ], 7 [ ]
 - The existing Render/History buttons + Preview/Source/Reasoning toggle now operate on `getActiveTab()`.
 - Migrate `viewRender`, `renderPreview`, `setActiveView`, source code panel, reasoning panel to read/write the active tab.
 
-## 2. [ ] History → open-in-tab + dedup
+## 2. [x] History → open-in-tab + dedup
 
 - History row click: if a tab with matching `renderId` exists, focus it; else create a new saved tab from the saved render's html + reasoning + meta name and focus it.
 - Remove the old single-slot replace behavior.
 
-## 3. [ ] Live tab + Generate demotion + close guard
+## 3. [x] Live tab + Generate demotion + close guard
 
 - On `generate()` success, if a live tab exists and is still unsaved, mark it `kind='unsaved'` (demote, no confirm guard going forward), then create a new `kind='live'` tab with the new html/reasoning and focus it.
 - Closing a `kind='live'` tab via X: show `confirm("This render is unsaved. Close anyway?")`.
 - Saving a live tab promotes it: `kind='saved'`, fill in `renderId` + `name`, hide its Save button.
 
-## 4. [ ] Save-button scoping
+## 4. [x] Save-button scoping
 
 - Save button visible only when `getActiveTab().kind === 'live' || 'unsaved'`. Hidden on saved tabs.
 - After save, immediately mutate the active tab to `kind='saved'` so the button hides without a refresh.
 
-## 5. [ ] Compare mode
+## 5. [x] Compare mode
 
 - Tabs have a small checkbox in the strip. Header shows a "Compare (N)" button when ≥2 tabs are checked.
 - Entering Compare mode replaces the single render area with a flex row of N columns. Each column = one checked tab; each column has its own mini Preview/Source/Reasoning toggle and its own iframe / source / reasoning panel.
 - Exit Compare returns to single-active-tab view; the checkbox state survives so re-entering is fast.
 - Reuse `renderPreview` per column (each column has its own iframe).
 
-## 6. [ ] Rename saved render
+## 6. [x] Rename saved render
 
 - History row: existing label becomes inline-editable on click of a small pencil affordance (not the row body — that opens the tab).
 - On commit: `PATCH /api/renders/:project/:id` with `{ name }`. Server writes `name` into the row in `meta.json`.
 - If a tab is open for that render, update its `name` in place so the tab label updates.
 - Live/unsaved tabs default name: `"New render"` or short timestamp. Becomes editable only after save.
 
-## 7. [ ] Tests + architecture doc
+## 7. [x] Tests + architecture doc
 
 - Playwright tests:
   - Open three saved renders into tabs; switch between them; verify each tab's Preview/Source/Reasoning is preserved independently.

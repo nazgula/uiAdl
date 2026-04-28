@@ -3,10 +3,18 @@ let model = 'haiku';
 let editingId = null;
 let decisions = [];
 let project = { name: '', desc: '' };
-let lastHTML = '';
-let lastReasoning = '';
-let activeView = 'render';
 let activeTab = 'decisions';
+
+// Tabs: each render (live or saved) is a tab.
+// { id, kind: 'live'|'unsaved'|'saved', renderId, name, html, reasoning, view, compareChecked }
+let tabs = [];
+let activeTabId = null;
+let compareMode = false;
+let nextTabId = 1;
+
+function getActiveTab() { return tabs.find(t => t.id === activeTabId) || null; }
+function findTabByRenderId(renderId) { return tabs.find(t => t.renderId === renderId) || null; }
+function liveTab() { return tabs.find(t => t.kind === 'live') || null; }
 
 const MODELS = {
   haiku:  { id: 'claude-haiku-4-5-20251001', inputPer1M: 0.80,  outputPer1M: 4.00 },
@@ -327,7 +335,16 @@ function showTab(tab) {
 
 // ─── Preview views ────────────────────────────────────────────
 function setView(v) {
-  activeView = v;
+  if (compareMode) return; // view buttons inactive in compare mode
+  const t = getActiveTab();
+  if (t && v !== 'history') t.view = v;
+  applyView(v);
+  if (v === 'history') loadHistory();
+}
+
+// Render the active tab's content into the singleton preview elements,
+// and reflect the tab's chosen view (preview/source/reasoning/history).
+function applyView(v) {
   const views = ['render', 'source', 'reasoning', 'history'];
   views.forEach(name => {
     document.getElementById('preview-' + name).classList.toggle('hidden', name !== v);
@@ -343,13 +360,48 @@ function setView(v) {
         (v === name ? 'bg-white shadow-sm text-gray-700' : 'text-gray-500 hover:bg-gray-200');
     }
   });
-  if (v === 'history') loadHistory();
+}
+
+// Render whichever tab is active into the singleton preview/source/reasoning elements.
+function renderActiveTab() {
+  const t = getActiveTab();
+  const frame = document.getElementById('preview-frame');
+  const empty = document.getElementById('preview-empty');
+  if (!t) {
+    frame.classList.add('hidden');
+    frame.srcdoc = '';
+    empty.classList.remove('hidden');
+    document.getElementById('source-code').textContent = '';
+    showReasoning('');
+    updateSaveButton();
+    return;
+  }
+  // Preview
+  if (t.html) {
+    empty.classList.add('hidden');
+    renderPreview(t.html);
+  } else {
+    frame.classList.add('hidden');
+    frame.srcdoc = '';
+    empty.classList.remove('hidden');
+  }
+  // Source
+  document.getElementById('source-code').textContent = t.html || '';
+  // Reasoning
+  showReasoning(
+    t.reasoning ? '[REASONING]\n\n' + t.reasoning : '',
+    t.kind === 'saved' ? 'No reasoning saved for this render.' : 'No reasoning yet — generate a render to see one.'
+  );
+  // View toggle reflects this tab's view
+  applyView(t.view || 'render');
+  updateSaveButton();
 }
 
 function copySource() {
-  if (!lastHTML) return;
+  const t = getActiveTab();
+  if (!t || !t.html) return;
   const btn = document.getElementById('source-copy-btn');
-  navigator.clipboard.writeText(lastHTML).then(() => {
+  navigator.clipboard.writeText(t.html).then(() => {
     if (!btn) return;
     btn.classList.add('text-green-600', 'border-green-300');
     setTimeout(() => btn.classList.remove('text-green-600', 'border-green-300'), 1200);
@@ -369,6 +421,98 @@ function showReasoning(text, emptyMsg) {
     content.textContent = '';
     empty.classList.remove('hidden');
     if (msg) msg.textContent = emptyMsg || 'No reasoning yet — generate a render to see one.';
+  }
+}
+
+// ─── Tab management ───────────────────────────────────────────
+function addTab(t) {
+  const tab = Object.assign({ id: nextTabId++, view: 'render', compareChecked: false }, t);
+  tabs.push(tab);
+  return tab;
+}
+
+function setActiveTabId(id) {
+  activeTabId = id;
+  renderTabStrip();
+  renderActiveTab();
+}
+
+function closeTab(tabId, ev) {
+  if (ev) { ev.stopPropagation(); }
+  const tab = tabs.find(t => t.id === tabId);
+  if (!tab) return;
+  if (tab.kind === 'live') {
+    if (!confirm('This render is unsaved. Close anyway?')) return;
+  }
+  const idx = tabs.indexOf(tab);
+  tabs.splice(idx, 1);
+  if (activeTabId === tabId) {
+    const next = tabs[idx] || tabs[idx - 1] || null;
+    activeTabId = next ? next.id : null;
+  }
+  renderTabStrip();
+  renderActiveTab();
+  refreshCompareUI();
+}
+
+function toggleCompareCheck(tabId, ev) {
+  if (ev) { ev.stopPropagation(); }
+  const tab = tabs.find(t => t.id === tabId);
+  if (!tab) return;
+  tab.compareChecked = !tab.compareChecked;
+  renderTabStrip();
+  refreshCompareUI();
+}
+
+function refreshCompareUI() {
+  const checked = tabs.filter(t => t.compareChecked);
+  const btn = document.getElementById('compare-btn');
+  if (compareMode) {
+    btn.classList.add('hidden');
+  } else if (checked.length >= 2) {
+    btn.classList.remove('hidden');
+    btn.textContent = `Compare (${checked.length})`;
+  } else {
+    btn.classList.add('hidden');
+  }
+}
+
+function renderTabStrip() {
+  const strip = document.getElementById('tab-strip');
+  if (!tabs.length) {
+    strip.classList.add('hidden');
+    strip.innerHTML = '';
+    refreshCompareUI();
+    return;
+  }
+  strip.classList.remove('hidden');
+  strip.classList.add('flex');
+  strip.innerHTML = tabs.map(t => {
+    const isActive = t.id === activeTabId;
+    const cls = ['render-tab'];
+    if (isActive) cls.push('active');
+    if (t.kind === 'live') cls.push('live');
+    const checkbox = `<input type="checkbox" ${t.compareChecked ? 'checked' : ''}
+      onclick="toggleCompareCheck(${t.id}, event)"
+      class="w-3 h-3 accent-indigo-600 cursor-pointer" title="Include in compare" />`;
+    const x = `<span class="tab-x" onclick="closeTab(${t.id}, event)" title="Close">✕</span>`;
+    const liveDot = t.kind === 'live' ? '<span class="text-indigo-500" title="Unsaved live render">●</span>' : '';
+    return `<div class="${cls.join(' ')}" onclick="setActiveTabId(${t.id})">
+      ${checkbox}${liveDot}<span class="tab-name">${escHtml(t.name)}</span>${x}
+    </div>`;
+  }).join('');
+  refreshCompareUI();
+}
+
+function updateSaveButton() {
+  const btn = document.getElementById('save-render-btn');
+  const t = getActiveTab();
+  if (!compareMode && t && (t.kind === 'live' || t.kind === 'unsaved')) {
+    btn.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'Save Render';
+  } else {
+    btn.classList.add('hidden');
   }
 }
 
@@ -409,18 +553,22 @@ async function generate() {
     const truncated = data.stop_reason === 'max_tokens';
     if (truncated) showError('Output was truncated — try Sonnet for larger mockups, or simplify the PDL.');
 
-    lastHTML = html;
-    lastReasoning = reasoning;
+    // Demote any existing live tab to a regular closeable unsaved tab
+    const prevLive = liveTab();
+    if (prevLive) prevLive.kind = 'unsaved';
 
-    showReasoning(reasoning ? '[REASONING]\n\n' + reasoning : '');
-
-    renderPreview(html);
-    document.getElementById('source-code').textContent = html;
-
-    const saveBtn = document.getElementById('save-render-btn');
-    saveBtn.textContent = 'Save Render';
-    saveBtn.disabled = false;
-    saveBtn.classList.remove('hidden');
+    // Create a new live tab and focus it
+    const stamp = new Date();
+    const defaultName = `New render ${stamp.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })}`;
+    const tab = addTab({
+      kind: 'live',
+      renderId: null,
+      name: defaultName,
+      html,
+      reasoning,
+      view: 'render'
+    });
+    setActiveTabId(tab.id);
 
     const inTok  = data.usage?.input_tokens  || 0;
     const outTok = data.usage?.output_tokens || 0;
@@ -436,9 +584,9 @@ async function generate() {
   }
 }
 
-async function renderPreview(html) {
-  document.getElementById('preview-empty').classList.add('hidden');
-  const frame = document.getElementById('preview-frame');
+async function renderPreview(html, frameEl) {
+  const frame = frameEl || document.getElementById('preview-frame');
+  if (!frameEl) document.getElementById('preview-empty').classList.add('hidden');
   frame.classList.remove('hidden');
 
   // Prepend wireframe.css to the rendered HTML
@@ -451,7 +599,6 @@ async function renderPreview(html) {
   let fullHtml = html;
   if (css) {
     const styleTag = `<style>\n/* wireframe.css */\n${css}\n</style>`;
-    // Inject at start of <head> so model CSS comes after and overrides the base
     if (fullHtml.includes('<head>')) {
       fullHtml = fullHtml.replace('<head>', '<head>\n' + styleTag);
     } else {
@@ -460,7 +607,6 @@ async function renderPreview(html) {
   }
 
   frame.srcdoc = fullHtml;
-  if (activeView !== 'render') setView('render');
 }
 
 function setLoading(on) {
@@ -486,25 +632,44 @@ function projectSlug() {
 }
 
 async function saveRender() {
+  const t = getActiveTab();
+  if (!t || (t.kind !== 'live' && t.kind !== 'unsaved')) return;
   const btn = document.getElementById('save-render-btn');
   if (btn.disabled) return;
   btn.disabled = true;
   btn.textContent = 'Saving…';
   try {
-    const res = await fetch(`/api/renders/${projectSlug()}`, {
+    const slug = projectSlug();
+    const res = await fetch(`/api/renders/${slug}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ html: lastHTML, reasoning: lastReasoning })
+      body: JSON.stringify({ html: t.html, reasoning: t.reasoning, name: t.name })
     });
     if (!res.ok) throw new Error('Save failed');
-    btn.classList.add('hidden');
-    btn.textContent = 'Save Render';
+    const { id } = await res.json();
+    // Persist the tab name as the render's display name
+    await fetch(`/api/renders/${slug}/${id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: t.name })
+    });
+    // Promote tab to saved
+    t.kind = 'saved';
+    t.renderId = id;
+    renderTabStrip();
+    updateSaveButton();
     setView('history');
   } catch(e) {
     btn.disabled = false;
     btn.textContent = 'Save Render';
     showError(e.message);
   }
+}
+
+function defaultRenderLabel(r) {
+  const d = new Date(r.savedAt);
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) +
+         ' ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
 }
 
 async function loadHistory() {
@@ -518,14 +683,15 @@ async function loadHistory() {
     emptyEl.classList.add('hidden');
     listEl.classList.remove('hidden');
     listEl.innerHTML = meta.map(r => {
-      const d = new Date(r.savedAt);
-      const label = d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) +
-                    ' ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+      const label = r.name || defaultRenderLabel(r);
       const ratingClass = r.rating === 'good' ? 'text-green-600 font-semibold' :
                           r.rating === 'bad'  ? 'text-red-500 font-semibold' : 'text-gray-400';
-      return `<div class="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50 transition group">
-        <button onclick="viewRender('${slug}','${r.id}')"
-          class="flex-1 text-left text-sm text-gray-700 font-mono">${label}</button>
+      const safeLabel = escHtml(label).replace(/'/g, "\\'");
+      return `<div class="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50 transition group" data-render-id="${r.id}">
+        <button onclick="viewRender('${slug}','${r.id}', '${safeLabel}')"
+          class="flex-1 text-left text-sm text-gray-700 font-mono history-label">${escHtml(label)}</button>
+        <button onclick="renderRenameStart('${slug}','${r.id}', this)" title="Rename"
+          class="text-xs px-2 py-1 rounded border border-gray-200 hover:border-indigo-300 hover:text-indigo-500 transition text-gray-300 opacity-0 group-hover:opacity-100">✎</button>
         <span class="${ratingClass} text-xs w-12 text-center">
           ${r.rating === 'good' ? 'good' : r.rating === 'bad' ? 'bad' : '—'}
         </span>
@@ -542,29 +708,66 @@ async function loadHistory() {
   } catch(e) { /* server not running */ }
 }
 
-async function viewRender(slug, id) {
-  const res  = await fetch(`/api/renders/${slug}/${id}`);
-  const html = await res.text();
-  lastHTML = html;
-  document.getElementById('source-code').textContent = html;
-  renderPreview(html);
-  document.getElementById('save-render-btn').classList.add('hidden');
+function renderRenameStart(slug, id, btn) {
+  const row = btn.closest('[data-render-id]');
+  const labelBtn = row.querySelector('.history-label');
+  const current = labelBtn.textContent;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = current;
+  input.className = 'flex-1 text-sm font-mono border border-indigo-300 rounded px-2 py-1';
+  labelBtn.replaceWith(input);
+  input.focus();
+  input.select();
+  const commit = async () => {
+    input.removeEventListener('blur', commit);
+    const val = input.value.trim() || current;
+    try {
+      await fetch(`/api/renders/${slug}/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: val })
+      });
+      // Update any open tab for this render
+      const t = findTabByRenderId(id);
+      if (t) { t.name = val; renderTabStrip(); }
+    } catch(e) { /* ignore */ }
+    loadHistory();
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') {
+      input.removeEventListener('blur', commit);
+      loadHistory();
+    }
+  });
+}
 
-  // Auto-sync reasoning panel to this render
+// Open a saved render in a tab (or focus an existing tab for it)
+async function viewRender(slug, id, displayName) {
+  const existing = findTabByRenderId(id);
+  if (existing) {
+    setActiveTabId(existing.id);
+    setView(existing.view || 'render');
+    return;
+  }
+  const res = await fetch(`/api/renders/${slug}/${id}`);
+  const html = res.ok ? await res.text() : '';
+  let reasoning = '';
   try {
     const r = await fetch(`/api/renders/${slug}/${id}/reasoning`);
-    if (r.ok) {
-      const text = await r.text();
-      lastReasoning = text;
-      showReasoning(text ? '[REASONING]\n\n' + text : '', 'No reasoning saved for this render.');
-    } else {
-      lastReasoning = '';
-      showReasoning('', 'No reasoning saved for this render.');
-    }
-  } catch(e) {
-    lastReasoning = '';
-    showReasoning('', 'No reasoning saved for this render.');
-  }
+    if (r.ok) reasoning = await r.text();
+  } catch(e) { /* missing reasoning is fine */ }
+  const tab = addTab({
+    kind: 'saved',
+    renderId: id,
+    name: displayName || id,
+    html,
+    reasoning,
+    view: 'render'
+  });
+  setActiveTabId(tab.id);
 }
 
 async function rateRender(slug, id, rating) {
@@ -578,7 +781,97 @@ async function rateRender(slug, id, rating) {
 
 async function deleteRender(slug, id) {
   await fetch(`/api/renders/${slug}/${id}`, { method: 'DELETE' });
+  const open = findTabByRenderId(id);
+  if (open) {
+    const idx = tabs.indexOf(open);
+    tabs.splice(idx, 1);
+    if (activeTabId === open.id) {
+      const next = tabs[idx] || tabs[idx - 1] || null;
+      activeTabId = next ? next.id : null;
+    }
+    renderTabStrip();
+    renderActiveTab();
+  }
   loadHistory();
+}
+
+// ─── Compare mode ─────────────────────────────────────────────
+function enterCompare() {
+  const checked = tabs.filter(t => t.compareChecked);
+  if (checked.length < 2) return;
+  compareMode = true;
+
+  // Hide single-tab views, show compare container
+  ['render','source','reasoning','history'].forEach(v => {
+    document.getElementById('preview-' + v).classList.add('hidden');
+  });
+  const container = document.getElementById('preview-compare');
+  container.classList.remove('hidden');
+
+  // Hide single-tab view buttons + Save while comparing
+  document.querySelectorAll('#view-render,#view-source,#view-reasoning,#view-history')
+    .forEach(b => b.classList.add('opacity-40', 'pointer-events-none'));
+  document.getElementById('save-render-btn').classList.add('hidden');
+  document.getElementById('compare-btn').classList.add('hidden');
+  document.getElementById('exit-compare-btn').classList.remove('hidden');
+
+  // Build columns
+  container.innerHTML = '';
+  checked.forEach(tab => {
+    const col = document.createElement('div');
+    col.className = 'compare-col';
+    col.dataset.tabId = tab.id;
+    col.innerHTML = `
+      <div class="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
+        <span class="text-xs font-mono text-gray-700 truncate">${escHtml(tab.name)}</span>
+        <div class="flex gap-1 bg-white rounded p-0.5 border border-gray-200">
+          <button data-cmp-view="render" class="text-[10px] px-2 py-0.5 rounded">P</button>
+          <button data-cmp-view="source" class="text-[10px] px-2 py-0.5 rounded">S</button>
+          <button data-cmp-view="reasoning" class="text-[10px] px-2 py-0.5 rounded">R</button>
+        </div>
+      </div>
+      <div class="flex-1 relative overflow-hidden" data-cmp-body>
+        <iframe data-cmp-frame class="w-full h-full bg-white hidden" sandbox="allow-scripts allow-same-origin"></iframe>
+        <pre data-cmp-source class="hidden text-xs font-mono p-3 h-full overflow-auto text-gray-700 whitespace-pre-wrap"></pre>
+        <div data-cmp-reasoning class="hidden text-sm text-gray-700 whitespace-pre-wrap p-4 overflow-auto h-full"></div>
+      </div>`;
+    container.appendChild(col);
+
+    const setColView = (v) => {
+      tab.view = v;
+      col.querySelectorAll('[data-cmp-view]').forEach(b => {
+        const active = b.dataset.cmpView === v;
+        b.className = 'text-[10px] px-2 py-0.5 rounded ' +
+          (active ? 'bg-indigo-100 text-indigo-700 font-semibold' : 'text-gray-500 hover:bg-gray-100');
+      });
+      const frame = col.querySelector('[data-cmp-frame]');
+      const src = col.querySelector('[data-cmp-source]');
+      const reas = col.querySelector('[data-cmp-reasoning]');
+      frame.classList.toggle('hidden', v !== 'render');
+      src.classList.toggle('hidden', v !== 'source');
+      reas.classList.toggle('hidden', v !== 'reasoning');
+      if (v === 'render' && tab.html) renderPreview(tab.html, frame);
+      if (v === 'source') src.textContent = tab.html || '';
+      if (v === 'reasoning') {
+        reas.textContent = tab.reasoning ? tab.reasoning : '(no reasoning saved for this render)';
+      }
+    };
+    col.querySelectorAll('[data-cmp-view]').forEach(b => {
+      b.addEventListener('click', () => setColView(b.dataset.cmpView));
+    });
+    setColView(tab.view || 'render');
+  });
+}
+
+function exitCompare() {
+  compareMode = false;
+  document.getElementById('preview-compare').classList.add('hidden');
+  document.getElementById('preview-compare').innerHTML = '';
+  document.getElementById('exit-compare-btn').classList.add('hidden');
+  document.querySelectorAll('#view-render,#view-source,#view-reasoning,#view-history')
+    .forEach(b => b.classList.remove('opacity-40', 'pointer-events-none'));
+  refreshCompareUI();
+  renderActiveTab();
 }
 
 // ─── Init ─────────────────────────────────────────────────────
@@ -591,3 +884,6 @@ if (saved) {
   document.getElementById('prompt-text').value = DEFAULT_PROMPT;
 }
 updatePromptPreview();
+renderTabStrip();
+applyView('render');
+updateSaveButton();
