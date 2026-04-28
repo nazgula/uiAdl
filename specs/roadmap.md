@@ -165,6 +165,7 @@ Scale to complex apps by generating one segment at a time.
 
 - **Wireframe CSS vocabulary as token-saver**: tried, doesn't work — model rewrites all CSS regardless. Keep `wireframe.css` as visual base layer only.
 - **Reference injection (full HTML)**: inject a full saved render into prompt. High token cost (~3000 tokens per render). Evaluate after Phase 1 to see if reasoning-only reference makes it unnecessary.
+- **Token usage & cost**: surface per-call `output_tokens` vs `max_tokens` cap so truncation is predictable; show the actually-returned model (confirm Sonnet vs Haiku); smarter `max_tokens` budgeting per model; in-UI cost dashboard. The Phase 2 bump from 8192 → 16384 was a band-aid; the real cap is 64K on both 4.5/4.6 models.
 
 ## Lessons learned (do not re-litigate)
 
