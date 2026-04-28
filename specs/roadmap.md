@@ -90,7 +90,20 @@ Reduce surface area before the reasoning loop. Remove unused capabilities and ti
 
 ---
 
-## Phase 2 — Reasoning Quality Loop (NEXT)
+## Phase 1.1 — Render Compare (NEXT)
+
+Side-by-side comparison of saved renders, with reasoning as the primary compare axis. Built before the reasoning loop because grading reasoning is meaningless until you've actually compared a bunch — you need to *see* what good looks like before you can encode it as a score.
+
+- [ ] **Multi-tab render area**: open multiple saved renders into tabs alongside the current generation
+- [ ] **Lock the live render**: the most recent freshly-generated render is locked (cannot be closed by accident); other tabs are closeable
+- [ ] **Save button scope**: enabled only for unsaved (fresh) tabs; hidden once a render is saved or when viewing an already-saved render
+- [ ] **Side-by-side reasoning view**: pick two open tabs and view their reasoning in two columns
+- [ ] **Preview / Source stay tab-switched** within each render tab — the compare axis is reasoning, not pixels
+- [ ] **Phase 1 invariant preserved per tab**: Preview/Source/Reasoning stay in lockstep within each tab
+
+---
+
+## Phase 2 — Reasoning Quality Loop
 
 Make reasoning useful as a learning signal, not just a log.
 

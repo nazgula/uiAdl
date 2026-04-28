@@ -1,6 +1,6 @@
 ---
 name: replan
-description: Between-phase roadmap check — confirm the planned next phase is still the right move; if not, edit the roadmap and commit a "Replan" change before /next-phase
+description: Between-phase roadmap check — confirm the planned next phase is still the right move; if not, edit the roadmap before /next-phase
 disable-model-invocation: true
 ---
 
@@ -45,7 +45,7 @@ Options:
 - **D. Add a new phase before N+1.**
 - **E. Drop or defer Phase N+1.**
 
-If **A** → end the skill. Tell the user: *"Roadmap unchanged. Run `/next-phase` when ready."* Do not commit anything.
+If **A** → end the skill. Tell the user: *"Roadmap unchanged. Run `/next-phase` when ready."* Nothing to write.
 
 If **B–E** → continue to step 4.
 
@@ -56,33 +56,21 @@ Ask follow-up questions only as needed to make the roadmap edit. Same rules as `
 Make the edit to `specs/roadmap.md`:
 
 - **B. Scope adjust** — edit bullets under the existing phase.
-- **C. Reorder** — swap phase headings + renumber.
-- **D. Insert** — add a new `## Phase X — <title>` block; renumber following phases.
-- **E. Drop/defer** — either delete the phase or move its bullets to the "Deferred / Under Evaluation" section near the bottom.
+- **C. Reorder** — swap phase headings; keep their original numbers attached to their content (i.e. retitle, don't renumber). If that's awkward, prefer the fractional insert pattern below.
+- **D. Insert** — add a new fractional phase block between the existing phases. Numbering rule: a phase added between Phase N and Phase N+1 is `Phase N.1` (or `N.2` if `N.1` already exists). **Never renumber the phases that follow.** This keeps phase numbers stable across replans, so cross-references in older specs, CHANGELOG entries, and commit messages stay valid forever.
+- **E. Drop/defer** — either delete the phase or move its bullets to the "Deferred / Under Evaluation" section near the bottom. Do not renumber following phases — leave the gap.
 
-When renumbering, also update any in-text references (e.g. "Phase 4a" → "Phase 5a").
+Numbering principle: original phases keep their integer numbers for the life of the project. Anything added during replan gets a fractional number. Gaps from dropped phases are fine — stable numbers matter more than dense numbering.
 
-## Step 5 — Commit
+## Step 5 — Hand off
 
-Stage `specs/roadmap.md` only. Commit message format:
+Leave `specs/roadmap.md` modified in the working tree — **do not stage, commit, or push.** The roadmap edit is the entire deliverable; it will be picked up on the next phase branch when `/next-phase` runs (or by `/finish-phase` if it's still uncommitted at that point).
 
-```
-Replan: <one-line reason>
-
-<2–4 lines explaining what changed and why — what you learned, what
-shifted priorities, or what the previous phase revealed.>
-```
-
-Examples:
-- `Replan: insert UI cleanup ahead of reasoning loop`
-- `Replan: drop two-round generation — wireframe.css experiment showed it doesn't help`
-- `Replan: reorder section selection before reasoning loop`
-
-After committing, tell the user: *"Roadmap updated. Run `/next-phase` when ready."* Do **not** auto-run `/next-phase`.
+Tell the user: *"Roadmap updated. Run `/next-phase` when ready."* Do **not** auto-run `/next-phase`.
 
 ## Hard constraints
 
 - Do not edit any file other than `specs/roadmap.md` in this skill. Architecture/tech-stack changes belong to phase work, not replanning.
+- Do not commit. Replan only edits the roadmap; the change is carried into the next phase branch by `/next-phase`.
 - Do not run `/next-phase` automatically. The user invokes it when they're ready.
-- Do not push to remote unless asked. Replan is a local main-branch commit, same as `/finish-phase`.
-- If the answer is "A — proceed as planned," commit nothing. Silence is the correct outcome.
+- If the answer is "A — proceed as planned," touch nothing. Silence is the correct outcome.
