@@ -26,12 +26,15 @@ Status: 1 [x], 2 [x], 3 [x], 4 [x], 5 [x], 6 [x], 7 [x]
 - Save button visible only when `getActiveTab().kind === 'live' || 'unsaved'`. Hidden on saved tabs.
 - After save, immediately mutate the active tab to `kind='saved'` so the button hides without a refresh.
 
-## 5. [x] Compare mode
+## 5. [x] Compare pair (locked split)
 
-- Tabs have a small checkbox in the strip. Header shows a "Compare (N)" button when ≥2 tabs are checked.
-- Entering Compare mode replaces the single render area with a flex row of N columns. Each column = one checked tab; each column has its own mini Preview/Source/Reasoning toggle and its own iframe / source / reasoning panel.
-- Exit Compare returns to single-active-tab view; the checkbox state survives so re-entering is fast.
-- Reuse `renderPreview` per column (each column has its own iframe).
+- Tabs have a checkbox in the strip. Checking a second tab auto-locks a 2-tab compare pair (no Compare button).
+- While paired, other tabs' checkboxes are `disabled`. The two paired checkboxes can be unchecked; doing so dissolves the pair.
+- `isInSplit()` returns true when: a pair exists, the active tab is in the pair, and the active view is render/source/reasoning.
+- `showSplit()` populates `#preview-compare` with two columns; both render whichever view the active tab has selected. The top toolbar's P/S/R buttons act on the active tab's view, which both columns share.
+- Clicking a non-paired tab returns to single-tab view (pair stays locked, just not visible).
+- History view is single-pane regardless of pair state.
+- Closing a paired tab dissolves the pair (since `checkedTabs()` drops to 1).
 
 ## 6. [x] Rename saved render
 

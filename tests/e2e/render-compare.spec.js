@@ -142,14 +142,15 @@ test('opening a saved render from History creates a tab; clicking again focuses 
   await expect(page.locator('#tab-strip .render-tab')).toHaveCount(1);
 });
 
-test('compare button appears with 2 checked tabs and splits the render area', async ({ page }) => {
+test('checking the second tab auto-locks a compare pair and splits the render area', async ({ page }) => {
   let callCount = 0;
   const responses = [
     buildResponse('ALPHA', 'A-REASON'),
-    buildResponse('BETA',  'B-REASON')
+    buildResponse('BETA',  'B-REASON'),
+    buildResponse('GAMMA', 'G-REASON')
   ];
   await page.route('**/api/generate', async (route) => {
-    const body = JSON.stringify(responses[Math.min(callCount, 1)]);
+    const body = JSON.stringify(responses[Math.min(callCount, 2)]);
     callCount++;
     await route.fulfill({ status: 200, contentType: 'application/json', body });
   });
@@ -157,31 +158,75 @@ test('compare button appears with 2 checked tabs and splits the render area', as
   await addDecisionViaUI(page, 'ui', 'Compare test');
   await page.click('#generate-btn');
   await page.click('#generate-btn');
+  await page.click('#generate-btn');
 
-  // Check both tabs
+  const checkboxes = page.locator('#tab-strip .render-tab input[type=checkbox]');
+  const compareView = page.locator('#preview-compare');
+
+  // Single check: still single view
+  await checkboxes.nth(0).check();
+  await expect(compareView).toBeHidden();
+
+  // Second check on a paired tab → split appears immediately, no button
+  await checkboxes.nth(1).check();
+  await expect(page.locator('#compare-status')).toBeVisible();
+  // Active tab is the most recent (GAMMA), which is NOT in the pair → still single
+  await expect(compareView).toBeHidden();
+
+  // Click on the first paired tab → split shows
+  await page.locator('#tab-strip .render-tab').nth(0).click();
+  await expect(compareView).toBeVisible();
+  await expect(compareView.locator('.compare-col')).toHaveCount(2);
+
+  // Top P/S/R buttons control both columns at once. Switch to Source.
+  await page.click('#view-source');
+  await expect(compareView.locator('.compare-col pre[data-cmp-source]').nth(0)).toBeVisible();
+  await expect(compareView.locator('.compare-col pre[data-cmp-source]').nth(1)).toBeVisible();
+  await expect(compareView.locator('.compare-col iframe[data-cmp-frame]').first()).toBeHidden();
+
+  // The third (non-paired) checkbox is disabled while the pair is locked
+  await expect(checkboxes.nth(2)).toBeDisabled();
+
+  // Click on the third (non-paired) tab → split disappears, single view returns
+  await page.locator('#tab-strip .render-tab').nth(2).click();
+  await expect(compareView).toBeHidden();
+
+  // Re-click a paired tab → split returns
+  await page.locator('#tab-strip .render-tab').nth(0).click();
+  await expect(compareView).toBeVisible();
+
+  // Unchecking a paired tab dissolves the pair
+  await checkboxes.nth(0).uncheck();
+  await expect(compareView).toBeHidden();
+  await expect(page.locator('#compare-status')).toBeHidden();
+  await expect(checkboxes.nth(2)).toBeEnabled();
+});
+
+test('closing a paired tab while in split exits the split immediately', async ({ page }) => {
+  let callCount = 0;
+  const responses = [buildResponse('ALPHA','A-R'), buildResponse('BETA','B-R')];
+  await page.route('**/api/generate', async (route) => {
+    const body = JSON.stringify(responses[Math.min(callCount, 1)]);
+    callCount++;
+    await route.fulfill({ status: 200, contentType: 'application/json', body });
+  });
+
+  await addDecisionViaUI(page, 'ui', 'Pair close test');
+  await page.click('#generate-btn');
+  await page.click('#generate-btn');
+
   const checkboxes = page.locator('#tab-strip .render-tab input[type=checkbox]');
   await checkboxes.nth(0).check();
   await checkboxes.nth(1).check();
+  // Active tab (the second, BETA) is in the pair → split visible
+  await expect(page.locator('#preview-compare')).toBeVisible();
 
-  const compareBtn = page.locator('#compare-btn');
-  await expect(compareBtn).toBeVisible();
-  await expect(compareBtn).toContainText('Compare (2)');
-
-  await compareBtn.click();
-  const compareView = page.locator('#preview-compare');
-  await expect(compareView).toBeVisible();
-  const cols = compareView.locator('.compare-col');
-  await expect(cols).toHaveCount(2);
-
-  // Each column has its own P/S/R toggle. Switch column 1 to source.
-  await cols.nth(0).locator('button[data-cmp-view="source"]').click();
-  await expect(cols.nth(0).locator('pre[data-cmp-source]')).toBeVisible();
-  // Column 2 stays on Preview (its iframe is visible, source is hidden)
-  await expect(cols.nth(1).locator('iframe[data-cmp-frame]')).toBeVisible();
-
-  // Exit compare returns to single-tab view
-  await page.click('#exit-compare-btn');
-  await expect(compareView).toBeHidden();
+  // Close the active live tab (with confirm)
+  page.once('dialog', d => d.accept());
+  await page.locator('#tab-strip .render-tab').nth(1).locator('.tab-x').click();
+  // Pair dissolves; split is gone
+  await expect(page.locator('#preview-compare')).toBeHidden();
+  await expect(page.locator('#compare-status')).toBeHidden();
 });
 
 test('rename a saved render updates the History label and persists', async ({ page }) => {

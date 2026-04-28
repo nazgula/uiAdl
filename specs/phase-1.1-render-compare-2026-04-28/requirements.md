@@ -13,7 +13,13 @@ Grading reasoning quality in the abstract (Phase 2) is meaningless until you've 
 - **Save button scope**: visible/enabled only on unsaved tabs. Hidden on saved tabs.
 - **Per-tab view state**: each tab independently tracks its active view (Preview / Source / Reasoning). Switching tabs restores that tab's view selection.
 - **Lockstep invariant per tab**: Preview, Source, and Reasoning within a single tab always reflect the same render (Phase 1 invariant, scoped to each tab).
-- **Compare mode**: each tab has a checkbox to mark it for inclusion in compare. Entering compare mode splits the render area into N columns (one per checked tab), each column with its own Preview/Source/Reasoning toggle. Exit returns to single-tab view.
+- **Compare pair (locked split)**: each tab has a checkbox in the strip. Checking a second tab auto-locks a compare pair (no separate Compare button). While the pair is locked:
+  - The two paired tabs' checkboxes can be unchecked; all other tabs' checkboxes are disabled (no triples).
+  - Clicking either paired tab shows a 2-column split of the pair.
+  - Clicking any non-paired tab returns to the regular single-tab view (the pair stays locked but isn't visible).
+  - The top toolbar's Preview/Source/Reasoning buttons control **both** columns simultaneously — the compare axis is render-vs-render, source-vs-source, reasoning-vs-reasoning. There is no per-column toggle.
+  - History view is single-pane even while a pair is locked.
+  - Closing either paired tab or unchecking either checkbox dissolves the pair immediately (split disappears).
 - **Rename a render**: from a History row, the user can inline-edit the render's name. The name is shown as the tab label (when open) and the History row label. Stored in `meta.json` as `name`. Live (unsaved) tabs show a default placeholder ("New render" or timestamp) until saved.
 
 ## Out of scope
@@ -26,7 +32,7 @@ Grading reasoning quality in the abstract (Phase 2) is meaningless until you've 
 
 ## Success signal
 
-The user can generate three renders, save them all with distinct names, open all three from History into tabs, check two of them, enter compare mode, and view all three views (Preview / Source / Reasoning) side-by-side per column — switching each column's view independently — without losing any tab's state.
+The user can generate three renders, save them all with distinct names, open all three from History into tabs, check two of them (auto-locking a compare pair), and toggle between Preview/Source/Reasoning to compare those two side-by-side. Clicking the third tab returns to single view; re-clicking either paired tab restores the split. Unchecking either dissolves the pair.
 
 ## Open questions
 

@@ -60,9 +60,18 @@ The right pane button row reads `Render [ Preview | Source | Reasoning ] · Hist
 
 **Per-tab lockstep invariant**: within a single tab, Preview, Source, and Reasoning always reflect that tab's html/reasoning. Switching to a different tab restores that tab's last-selected view (`tab.view`). A History selection opens (or focuses) a tab — it never silently mutates the active tab.
 
-### Compare mode
+### Compare pair (locked split)
 
-When ≥2 tabs are checked (via the per-tab checkbox in the strip), a **Compare (N)** button appears. Entering compare hides the single-tab Preview/Source/Reasoning/History panels and shows `#preview-compare`, a flex row of N columns — one per checked tab. Each column has its own miniature P/S/R toggle and its own iframe / source / reasoning block. The single-tab view buttons and Save button are disabled while comparing. Exiting compare returns to the active tab's normal view.
+Each tab has a checkbox in the strip. Checking exactly two tabs auto-locks a **compare pair** — no separate Compare button. While a pair is locked:
+
+- The two paired checkboxes can be unchecked; all other tabs' checkboxes are disabled (no triples).
+- Clicking either paired tab shows a 2-column split (`#preview-compare` populated dynamically) — both columns render the **same view** (Preview / Source / Reasoning) at once.
+- Clicking any non-paired tab returns to the single-tab render area; the pair stays locked but isn't visible until a paired tab is focused again.
+- The top toolbar's Preview/Source/Reasoning buttons control **both columns simultaneously** — the compare axis is render-vs-render, source-vs-source, reasoning-vs-reasoning. There is no per-column toggle.
+- History view is always single-pane (the split is hidden while History is the active view).
+- Closing either paired tab or unchecking either checkbox dissolves the pair immediately.
+
+The Save button is hidden whenever the split is currently visible (saving requires a single active tab).
 
 ### Reasoning block
 

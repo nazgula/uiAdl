@@ -9,12 +9,24 @@ let activeTab = 'decisions';
 // { id, kind: 'live'|'unsaved'|'saved', renderId, name, html, reasoning, view, compareChecked }
 let tabs = [];
 let activeTabId = null;
-let compareMode = false;
 let nextTabId = 1;
 
 function getActiveTab() { return tabs.find(t => t.id === activeTabId) || null; }
 function findTabByRenderId(renderId) { return tabs.find(t => t.renderId === renderId) || null; }
 function liveTab() { return tabs.find(t => t.kind === 'live') || null; }
+function checkedTabs() { return tabs.filter(t => t.compareChecked); }
+function comparePair() {
+  const c = checkedTabs();
+  return c.length === 2 ? c : null;
+}
+function isInSplit() {
+  const pair = comparePair();
+  if (!pair) return false;
+  const t = getActiveTab();
+  if (!t || !t.compareChecked) return false;
+  const v = t.view || 'render';
+  return v === 'render' || v === 'source' || v === 'reasoning';
+}
 
 const MODELS = {
   haiku:  { id: 'claude-haiku-4-5-20251001', inputPer1M: 0.80,  outputPer1M: 4.00 },
@@ -335,11 +347,23 @@ function showTab(tab) {
 
 // ─── Preview views ────────────────────────────────────────────
 function setView(v) {
-  if (compareMode) return; // view buttons inactive in compare mode
   const t = getActiveTab();
   if (t && v !== 'history') t.view = v;
-  applyView(v);
-  if (v === 'history') loadHistory();
+  // History is single-view even when a compare pair is locked
+  if (v === 'history') {
+    document.getElementById('preview-compare').classList.add('hidden');
+    applyView('history');
+    loadHistory();
+    return;
+  }
+  if (isInSplit()) {
+    showSplit();
+  } else {
+    document.getElementById('preview-compare').classList.add('hidden');
+    applyView(v);
+    // Re-render frame/source/reasoning for current tab on view change
+    if (t) renderActiveTabContent();
+  }
 }
 
 // Render the active tab's content into the singleton preview elements,
@@ -362,21 +386,41 @@ function applyView(v) {
   });
 }
 
-// Render whichever tab is active into the singleton preview/source/reasoning elements.
+// Render whichever tab is active. Routes between split (compare pair) and single.
 function renderActiveTab() {
   const t = getActiveTab();
-  const frame = document.getElementById('preview-frame');
-  const empty = document.getElementById('preview-empty');
-  if (!t) {
-    frame.classList.add('hidden');
-    frame.srcdoc = '';
-    empty.classList.remove('hidden');
-    document.getElementById('source-code').textContent = '';
-    showReasoning('');
+  const compareStatus = document.getElementById('compare-status');
+  if (comparePair()) compareStatus.classList.remove('hidden');
+  else compareStatus.classList.add('hidden');
+
+  if (isInSplit()) {
+    showSplit();
     updateSaveButton();
     return;
   }
-  // Preview
+  document.getElementById('preview-compare').classList.add('hidden');
+  if (!t) {
+    const frame = document.getElementById('preview-frame');
+    frame.classList.add('hidden');
+    frame.srcdoc = '';
+    document.getElementById('preview-empty').classList.remove('hidden');
+    document.getElementById('source-code').textContent = '';
+    showReasoning('');
+    applyView('render');
+    updateSaveButton();
+    return;
+  }
+  renderActiveTabContent();
+  applyView(t.view || 'render');
+  updateSaveButton();
+}
+
+// Populate the singleton preview/source/reasoning elements for the active tab.
+function renderActiveTabContent() {
+  const t = getActiveTab();
+  if (!t) return;
+  const frame = document.getElementById('preview-frame');
+  const empty = document.getElementById('preview-empty');
   if (t.html) {
     empty.classList.add('hidden');
     renderPreview(t.html);
@@ -385,16 +429,49 @@ function renderActiveTab() {
     frame.srcdoc = '';
     empty.classList.remove('hidden');
   }
-  // Source
   document.getElementById('source-code').textContent = t.html || '';
-  // Reasoning
   showReasoning(
     t.reasoning ? '[REASONING]\n\n' + t.reasoning : '',
     t.kind === 'saved' ? 'No reasoning saved for this render.' : 'No reasoning yet — generate a render to see one.'
   );
-  // View toggle reflects this tab's view
-  applyView(t.view || 'render');
-  updateSaveButton();
+}
+
+// Render the locked compare pair into #preview-compare, two columns sharing
+// whichever view (render/source/reasoning) the active tab has selected.
+function showSplit() {
+  const pair = comparePair();
+  if (!pair) return;
+  const view = (getActiveTab().view) || 'render';
+  // Hide single-view panels
+  ['render','source','reasoning','history'].forEach(v => {
+    document.getElementById('preview-' + v).classList.add('hidden');
+  });
+  applyView(view); // top toolbar still reflects the active view
+  const container = document.getElementById('preview-compare');
+  container.classList.remove('hidden');
+  container.innerHTML = '';
+  pair.forEach(tab => {
+    const isActive = tab.id === activeTabId;
+    const col = document.createElement('div');
+    col.className = 'compare-col';
+    col.dataset.tabId = tab.id;
+    col.innerHTML = `
+      <div class="px-3 py-2 border-b border-gray-200 ${isActive ? 'bg-indigo-50' : 'bg-gray-50'}">
+        <span class="text-xs font-mono ${isActive ? 'text-indigo-700 font-semibold' : 'text-gray-600'} truncate">${escHtml(tab.name)}</span>
+      </div>
+      <div class="flex-1 relative overflow-hidden">
+        <iframe data-cmp-frame class="w-full h-full bg-white ${view === 'render' ? '' : 'hidden'}" sandbox="allow-scripts allow-same-origin"></iframe>
+        <pre data-cmp-source class="${view === 'source' ? '' : 'hidden'} text-xs font-mono p-3 h-full overflow-auto text-gray-700 whitespace-pre-wrap"></pre>
+        <div data-cmp-reasoning class="${view === 'reasoning' ? '' : 'hidden'} text-sm text-gray-700 whitespace-pre-wrap p-4 overflow-auto h-full"></div>
+      </div>`;
+    container.appendChild(col);
+    if (view === 'render' && tab.html) renderPreview(tab.html, col.querySelector('[data-cmp-frame]'));
+    if (view === 'source') col.querySelector('[data-cmp-source]').textContent = tab.html || '';
+    if (view === 'reasoning') col.querySelector('[data-cmp-reasoning]').textContent =
+      tab.reasoning || '(no reasoning saved for this render)';
+    // Click on a column header focuses that tab
+    col.querySelector('div').addEventListener('click', () => setActiveTabId(tab.id));
+  });
 }
 
 function copySource() {
@@ -450,31 +527,22 @@ function closeTab(tabId, ev) {
     const next = tabs[idx] || tabs[idx - 1] || null;
     activeTabId = next ? next.id : null;
   }
+  // If the removed tab was part of the compare pair, the pair dissolves
+  // automatically since checkedTabs() now has only 1 entry — split won't render.
   renderTabStrip();
   renderActiveTab();
-  refreshCompareUI();
 }
 
 function toggleCompareCheck(tabId, ev) {
   if (ev) { ev.stopPropagation(); }
   const tab = tabs.find(t => t.id === tabId);
   if (!tab) return;
+  // While a pair is locked, only the two paired checkboxes are toggleable.
+  const pair = comparePair();
+  if (pair && !tab.compareChecked) return;
   tab.compareChecked = !tab.compareChecked;
   renderTabStrip();
-  refreshCompareUI();
-}
-
-function refreshCompareUI() {
-  const checked = tabs.filter(t => t.compareChecked);
-  const btn = document.getElementById('compare-btn');
-  if (compareMode) {
-    btn.classList.add('hidden');
-  } else if (checked.length >= 2) {
-    btn.classList.remove('hidden');
-    btn.textContent = `Compare (${checked.length})`;
-  } else {
-    btn.classList.add('hidden');
-  }
+  renderActiveTab();
 }
 
 function renderTabStrip() {
@@ -482,32 +550,36 @@ function renderTabStrip() {
   if (!tabs.length) {
     strip.classList.add('hidden');
     strip.innerHTML = '';
-    refreshCompareUI();
     return;
   }
   strip.classList.remove('hidden');
   strip.classList.add('flex');
+  const pair = comparePair();
   strip.innerHTML = tabs.map(t => {
     const isActive = t.id === activeTabId;
     const cls = ['render-tab'];
     if (isActive) cls.push('active');
     if (t.kind === 'live') cls.push('live');
+    // While paired, disable other tabs' checkboxes.
+    const disabled = !!(pair && !t.compareChecked);
     const checkbox = `<input type="checkbox" ${t.compareChecked ? 'checked' : ''}
+      ${disabled ? 'disabled' : ''}
       onclick="toggleCompareCheck(${t.id}, event)"
-      class="w-3 h-3 accent-indigo-600 cursor-pointer" title="Include in compare" />`;
+      class="w-3 h-3 accent-indigo-600 ${disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}"
+      title="${disabled ? 'A compare pair is already locked' : 'Include in compare'}" />`;
     const x = `<span class="tab-x" onclick="closeTab(${t.id}, event)" title="Close">✕</span>`;
     const liveDot = t.kind === 'live' ? '<span class="text-indigo-500" title="Unsaved live render">●</span>' : '';
     return `<div class="${cls.join(' ')}" onclick="setActiveTabId(${t.id})">
       ${checkbox}${liveDot}<span class="tab-name">${escHtml(t.name)}</span>${x}
     </div>`;
   }).join('');
-  refreshCompareUI();
 }
 
 function updateSaveButton() {
   const btn = document.getElementById('save-render-btn');
   const t = getActiveTab();
-  if (!compareMode && t && (t.kind === 'live' || t.kind === 'unsaved')) {
+  // Hide while in split (split is read-only comparison; user must click a single tab to save it).
+  if (!isInSplit() && t && (t.kind === 'live' || t.kind === 'unsaved')) {
     btn.classList.remove('hidden');
     btn.disabled = false;
     btn.textContent = 'Save Render';
@@ -793,85 +865,6 @@ async function deleteRender(slug, id) {
     renderActiveTab();
   }
   loadHistory();
-}
-
-// ─── Compare mode ─────────────────────────────────────────────
-function enterCompare() {
-  const checked = tabs.filter(t => t.compareChecked);
-  if (checked.length < 2) return;
-  compareMode = true;
-
-  // Hide single-tab views, show compare container
-  ['render','source','reasoning','history'].forEach(v => {
-    document.getElementById('preview-' + v).classList.add('hidden');
-  });
-  const container = document.getElementById('preview-compare');
-  container.classList.remove('hidden');
-
-  // Hide single-tab view buttons + Save while comparing
-  document.querySelectorAll('#view-render,#view-source,#view-reasoning,#view-history')
-    .forEach(b => b.classList.add('opacity-40', 'pointer-events-none'));
-  document.getElementById('save-render-btn').classList.add('hidden');
-  document.getElementById('compare-btn').classList.add('hidden');
-  document.getElementById('exit-compare-btn').classList.remove('hidden');
-
-  // Build columns
-  container.innerHTML = '';
-  checked.forEach(tab => {
-    const col = document.createElement('div');
-    col.className = 'compare-col';
-    col.dataset.tabId = tab.id;
-    col.innerHTML = `
-      <div class="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
-        <span class="text-xs font-mono text-gray-700 truncate">${escHtml(tab.name)}</span>
-        <div class="flex gap-1 bg-white rounded p-0.5 border border-gray-200">
-          <button data-cmp-view="render" class="text-[10px] px-2 py-0.5 rounded">P</button>
-          <button data-cmp-view="source" class="text-[10px] px-2 py-0.5 rounded">S</button>
-          <button data-cmp-view="reasoning" class="text-[10px] px-2 py-0.5 rounded">R</button>
-        </div>
-      </div>
-      <div class="flex-1 relative overflow-hidden" data-cmp-body>
-        <iframe data-cmp-frame class="w-full h-full bg-white hidden" sandbox="allow-scripts allow-same-origin"></iframe>
-        <pre data-cmp-source class="hidden text-xs font-mono p-3 h-full overflow-auto text-gray-700 whitespace-pre-wrap"></pre>
-        <div data-cmp-reasoning class="hidden text-sm text-gray-700 whitespace-pre-wrap p-4 overflow-auto h-full"></div>
-      </div>`;
-    container.appendChild(col);
-
-    const setColView = (v) => {
-      tab.view = v;
-      col.querySelectorAll('[data-cmp-view]').forEach(b => {
-        const active = b.dataset.cmpView === v;
-        b.className = 'text-[10px] px-2 py-0.5 rounded ' +
-          (active ? 'bg-indigo-100 text-indigo-700 font-semibold' : 'text-gray-500 hover:bg-gray-100');
-      });
-      const frame = col.querySelector('[data-cmp-frame]');
-      const src = col.querySelector('[data-cmp-source]');
-      const reas = col.querySelector('[data-cmp-reasoning]');
-      frame.classList.toggle('hidden', v !== 'render');
-      src.classList.toggle('hidden', v !== 'source');
-      reas.classList.toggle('hidden', v !== 'reasoning');
-      if (v === 'render' && tab.html) renderPreview(tab.html, frame);
-      if (v === 'source') src.textContent = tab.html || '';
-      if (v === 'reasoning') {
-        reas.textContent = tab.reasoning ? tab.reasoning : '(no reasoning saved for this render)';
-      }
-    };
-    col.querySelectorAll('[data-cmp-view]').forEach(b => {
-      b.addEventListener('click', () => setColView(b.dataset.cmpView));
-    });
-    setColView(tab.view || 'render');
-  });
-}
-
-function exitCompare() {
-  compareMode = false;
-  document.getElementById('preview-compare').classList.add('hidden');
-  document.getElementById('preview-compare').innerHTML = '';
-  document.getElementById('exit-compare-btn').classList.add('hidden');
-  document.querySelectorAll('#view-render,#view-source,#view-reasoning,#view-history')
-    .forEach(b => b.classList.remove('opacity-40', 'pointer-events-none'));
-  refreshCompareUI();
-  renderActiveTab();
 }
 
 // ─── Init ─────────────────────────────────────────────────────
