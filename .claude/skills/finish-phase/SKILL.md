@@ -6,6 +6,62 @@ disable-model-invocation: true
 
 Run when a phase branch's work is complete and ready to merge. The active phase is the one whose folder lives at `specs/<feature-name>-<YYYY-MM-DD>/` matching the current branch name.
 
+## 0. Sweep the session for parking-lot items
+
+This is the **only** step that needs the session's working memory. Do it first, before anything else, so a `/clear` in between never loses these items.
+
+Scan the conversation history for things the user deferred during the phase: "just bump X for now", "we'll think about Y later", quick fixes that hint at a deeper question, shortcuts taken under time pressure. Build a candidate list.
+
+Present the list once with `AskUserQuestion` (batched, **not** per-item). For each item the user confirms:
+
+- Append a one-line bullet under `roadmap.md` → **"Deferred / Under Evaluation"**.
+- Do **not** promote items to numbered phases here — that's `/replan`'s call.
+
+If the candidate list is empty, say so explicitly so the silence is intentional.
+
+Commit immediately if the Deferred section changed:
+
+```
+Reconcile <phase>: parking lot
+```
+
+(Separate commits for sweep and reconcile mean either can be re-run independently.)
+
+### 0.x — Context check before continuing
+
+Steps 0.1 and 0.2 are file/git driven and do not need session memory. Steps 0.1 (test audit) and 0.2 (validation reconcile) can be heavy depending on phase size.
+
+If your context feels heavy at this point, recommend the user clear:
+
+> Parking lot is captured and committed. If your context feels full, `/clear` and re-invoke `/finish-phase` — I'll detect Step 0 ran and resume from Step 0.1.
+
+I cannot run `/clear` myself — it's a CLI builtin, not a tool. The user has to type it. (If they want this automated, that's a Stop-hook config in `settings.json`, not part of this skill.)
+
+On re-invoke, detect Step 0 by looking for a `Reconcile <phase>: parking lot` commit on the branch; if present, skip directly to Step 0.1.
+
+## 0.1. Audit tests against shipped behavior
+
+Tests must reflect what merged, not what was originally planned:
+
+- **Add** tests for behavior that was added during the phase but isn't covered.
+- **Update** tests whose assertions changed (UI moved, payload shape changed, etc.).
+- **Delete** tests for code or behavior that was removed during the phase.
+- Re-run the full suite. Failing or skipped tests block the merge.
+
+## 0.2. Reconcile validation.md against the plan
+
+- Run `git log main..HEAD --oneline` to list every commit on the branch.
+- For each commit, decide where the change lands:
+  - **Already covered** by an `architecture.md` section that Step 3 will update — fine, no action here.
+  - **New invariant or shipped behavior** that `validation.md` doesn't cover — append a criterion so the spec catches up to what shipped.
+- `requirements.md` and `plan.md` stay immutable: they are the contract this phase started from. Only `validation.md` may gain criteria here.
+
+If 0.1 or 0.2 produced changes, commit them together — separately from Step 5 — so the reconciliation is auditable on its own:
+
+```
+Reconcile <phase>: validation criteria + test updates
+```
+
 ## 1. Verify completion
 
 Before merging, confirm:
@@ -67,4 +123,5 @@ If architecture/tech-stack were not touched, say so in the message body (e.g. "n
 - Do not skip the verification step
 - Do not force-delete the branch
 - Do not push without explicit user approval
-- Do not edit the phase's spec files (`requirements.md`, `plan.md`, `validation.md`) — they are a record of how the phase ran
+- Do not edit `requirements.md` or `plan.md` — they are the contract this phase started from. `validation.md` may only be appended to during Step 0.2.
+- Do not promote parking-lot items into numbered phases during finish-phase — only `/replan` does that. Append to "Deferred / Under Evaluation" only.
