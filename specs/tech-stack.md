@@ -24,7 +24,7 @@
 - **Projects** — JSON files in `projects/{name}.json`
 - **Renders** — HTML files in `renders/{slug}/{id}.html`
 - **Reasoning** — plain text in `renders/{slug}/{id}.reasoning.txt`
-- **Render metadata** — `renders/{slug}/meta.json` (id, savedAt, rating, hasReasoning)
+- **Render metadata** — `renders/{slug}/meta.json` (id, savedAt, rating, hasReasoning, optional `name`)
 - **No database** — file system is the database; sufficient for solo use
 
 ## Testing

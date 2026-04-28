@@ -115,13 +115,18 @@ app.get('/api/renders/:project/:id/reasoning', (req, res) => {
   res.type('text').send(fs.readFileSync(file, 'utf8'));
 });
 
-// ─── Renders: update rating ───────────────────────────────────
+// ─── Renders: update rating / note / name ─────────────────────
 app.patch('/api/renders/:project/:id', (req, res) => {
   const meta = readMeta(req.params.project);
   const entry = meta.find(r => r.id === req.params.id);
   if (!entry) return res.status(404).json({ error: 'Not found' });
   entry.rating = req.body.rating ?? entry.rating;
   entry.note   = req.body.note   ?? entry.note;
+  if (typeof req.body.name === 'string') {
+    const trimmed = req.body.name.trim();
+    if (trimmed) entry.name = trimmed;
+    else delete entry.name;
+  }
   writeMeta(req.params.project, meta);
   res.json({ ok: true });
 });

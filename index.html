@@ -17,6 +17,16 @@
     textarea:focus, input:focus, select:focus { outline: 2px solid #6366f1; outline-offset: 1px; }
     .spinner { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    /* Render tab strip */
+    .render-tab { display:flex; align-items:center; gap:6px; padding:4px 8px; border:1px solid #e5e7eb; border-bottom:none; border-radius:6px 6px 0 0; background:#f9fafb; font-size:12px; color:#4b5563; cursor:pointer; max-width:220px; }
+    .render-tab:hover { background:#f3f4f6; }
+    .render-tab.active { background:#fff; color:#111827; border-color:#d1d5db; box-shadow:0 -1px 0 #fff inset; }
+    .render-tab.live   { border-top:2px solid #6366f1; }
+    .render-tab .tab-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:130px; }
+    .render-tab .tab-x { color:#9ca3af; padding:0 2px; border-radius:3px; }
+    .render-tab .tab-x:hover { color:#ef4444; background:#fee2e2; }
+    .compare-col { display:flex; flex-direction:column; min-width:0; flex:1; border-right:1px solid #e5e7eb; }
+    .compare-col:last-child { border-right:none; }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -143,6 +153,9 @@
 
   <!-- Right panel: Preview -->
   <section class="flex-1 flex flex-col bg-gray-100">
+    <!-- Tab strip -->
+    <div id="tab-strip" class="hidden items-end gap-1 px-3 pt-2 pb-0 bg-gray-50 border-b border-gray-200"></div>
+
     <div class="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
       <div class="flex items-center gap-2">
         <span class="text-xs font-semibold uppercase tracking-wider text-gray-400 mr-1">Render</span>
@@ -158,7 +171,8 @@
         <button id="view-history" onclick="setView('history')"
           class="text-xs px-3 py-1 rounded text-gray-500 hover:bg-gray-200 transition">History</button>
       </div>
-      <div class="flex gap-2">
+      <div class="flex gap-2 items-center">
+        <span id="compare-status" class="hidden text-xs text-indigo-500 font-medium">Comparing 2 renders</span>
         <button id="save-render-btn" onclick="saveRender()"
           class="hidden text-xs px-3 py-1 rounded border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition font-medium">Save Render</button>
       </div>
@@ -212,6 +226,9 @@
       </div>
       <div id="reasoning-content" class="hidden bg-white rounded-lg border border-gray-200 p-5 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed"></div>
     </div>
+
+    <!-- Compare view -->
+    <div id="preview-compare" class="hidden flex-1 flex bg-white"></div>
   </section>
 </main>
 
