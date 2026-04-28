@@ -1,4 +1,5 @@
 config.json
+prompts.json
 .env
 .DS_Store
 node_modules/

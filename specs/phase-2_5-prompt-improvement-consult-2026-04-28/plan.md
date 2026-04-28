@@ -1,8 +1,8 @@
 # Phase 2.5 — Plan
 
-Status: 1 [ ], 2 [ ], 3 [ ], 4 [ ], 5 [ ], 6 [ ], 7 [ ]
+Status: 1 [x], 2 [ ], 3 [ ], 4 [ ], 5 [ ], 6 [ ], 7 [ ]
 
-## 1. [ ] Prompts registry — backend + storage
+## 1. [x] Prompts registry — backend + storage
 
 - Add `prompts.json` at the repo root (gitignored alongside other runtime data). Shape: `{ versions: [ { id, createdAt, text, parentId, summary } ], activeVersionId }`.
 - On first server start, if `prompts.json` is missing, seed it with a single version where `text === DEFAULT_PROMPT` (read the constant from a small shared module so both server and frontend agree, OR have the seed live server-side and frontend fetches via API).
