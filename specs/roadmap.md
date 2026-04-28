@@ -104,15 +104,26 @@ Side-by-side comparison of renders. Built before the reasoning loop because grad
 
 ---
 
-## Phase 2 — Reasoning Quality Loop (NEXT)
+## Phase 2 — Render Notes & Grading (NEXT)
 
-Make reasoning useful as a learning signal, not just a log.
+Capture per-render feedback so Phase 2.5 has real data to work from.
 
-- [ ] **Grade saved reasoning**: add score (1–5) + notes (strong / weak) to each saved render's reasoning view
-- [ ] Store grade in `meta.json` alongside rating
-- [ ] **Use reasoning as reference**: inject a high-graded reasoning block into the next generation prompt as a structural anchor
-- [ ] UI: "Use as reference" button on history rows that have reasoning (R button already exists — extend it)
-- [ ] Show in prompt preview when a reference reasoning is attached
+- [ ] **Free-text notes** textarea per render (live + saved), persisted in `meta.json`
+- [ ] **1–5 grade** per render, persisted in `meta.json` alongside rating
+- [ ] **Active PDL snapshot** captured into `meta.json` at generate time (no backfill — historical renders had all decisions active)
+- [ ] Notes + grade visible in the Reasoning panel
+- [ ] Notes/grade indicator on History rows
+
+---
+
+## Phase 2.5 — Prompt Improvement Consult
+
+Use the captured render data to improve the generation prompt itself, instead of guessing.
+
+- [ ] **"Improve generation prompt"** action bundles: current generation prompt + N saved renders (each with PDL snapshot + reasoning + notes + grade, no HTML)
+- [ ] One-shot call to Claude; returns suggested edits to the generation prompt
+- [ ] User reviews and accepts/rejects the edits before they take effect
+- [ ] Defer chat/iteration unless one-shot proves insufficient
 
 ---
 
