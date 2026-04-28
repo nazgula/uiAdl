@@ -2,6 +2,15 @@
 
 Notable changes per phase. See `specs/roadmap.md` for the full plan.
 
+## 2026-04-28 — Phase 2: Render Notes & Grading
+
+- Saved renders now carry a free-text **note** and a **1–5 grade** alongside the existing rating. Both persist in `meta.json` and round-trip through the `POST` and `PATCH /api/renders/:project/:id` endpoints.
+- Each generation captures a **PDL snapshot** — the active decisions at generate time — onto the live tab. On save, the snapshot persists to `meta.json` (write-once; PATCH ignores it). Renders saved before this phase show "Snapshot not captured" instead.
+- Single shared **Assess** popover provides grade + note editing: a button on the right-pane toolbar in single view, and a per-column button in the locked-pair split view. The reasoning view shows the captured snapshot as a collapsible block; it does not duplicate grade/note controls.
+- Tab strip shows a clickable grade badge (cycles 1→5→clear) on every tab; History rows show a numeric grade badge and a small note indicator next to the existing R / rating / rename / delete affordances.
+- `max_tokens` for `/api/generate` bumped from 8192 to 16384 to reduce truncation. Deeper token-cost work (per-call usage visibility, smarter budgeting, model echo) parked under "Deferred / Under Evaluation" for replan.
+- 5 new Playwright tests (21 total, all green) cover the Assess popover, tab grade badge, history indicators, snapshot display, and per-column Assess in split view.
+
 ## 2026-04-28 — Phase 1.1: Render Compare
 
 - The render area is now multi-tabbed. Each generated or History-opened render lives in its own tab; Preview/Source/Reasoning stay in lockstep within a tab and each tab remembers its own view selection.

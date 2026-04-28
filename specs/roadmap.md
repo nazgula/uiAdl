@@ -104,15 +104,15 @@ Side-by-side comparison of renders. Built before the reasoning loop because grad
 
 ---
 
-## Phase 2 — Render Notes & Grading (NEXT)
+## Phase 2 — Render Notes & Grading
 
 Capture per-render feedback so Phase 2.5 has real data to work from.
 
-- [ ] **Free-text notes** textarea per render (live + saved), persisted in `meta.json`
-- [ ] **1–5 grade** per render, persisted in `meta.json` alongside rating
-- [ ] **Active PDL snapshot** captured into `meta.json` at generate time (no backfill — historical renders had all decisions active)
-- [ ] Notes + grade visible in the Reasoning panel
-- [ ] Notes/grade indicator on History rows
+- [x] **Free-text notes** textarea per render (live + saved), persisted in `meta.json`
+- [x] **1–5 grade** per render, persisted in `meta.json` alongside rating
+- [x] **Active PDL snapshot** captured into `meta.json` at generate time (no backfill — historical renders had all decisions active)
+- [x] Notes + grade visible in the Reasoning panel
+- [x] Notes/grade indicator on History rows
 
 ---
 
