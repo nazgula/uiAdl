@@ -82,7 +82,7 @@ app.delete('/api/projects/:name', (req, res) => {
 
 // ─── Renders: save ────────────────────────────────────────────
 app.post('/api/renders/:project', (req, res) => {
-  const { html, reasoning } = req.body;
+  const { html, reasoning, note, grade, pdlSnapshot } = req.body;
   if (!html) return res.status(400).json({ error: 'No html provided' });
   const id = Date.now().toString();
   const dir = rendersDir(req.params.project);
@@ -90,8 +90,16 @@ app.post('/api/renders/:project', (req, res) => {
   if (reasoning) {
     fs.writeFileSync(path.join(dir, id + '.reasoning.txt'), reasoning);
   }
+  const entry = { id, savedAt: new Date().toISOString(), rating: null, hasReasoning: !!reasoning };
+  if (typeof note === 'string' && note.trim()) entry.note = note;
+  if (Number.isInteger(grade) && grade >= 1 && grade <= 5) entry.grade = grade;
+  if (Array.isArray(pdlSnapshot)) {
+    entry.pdlSnapshot = pdlSnapshot
+      .filter(d => d && typeof d.text === 'string' && typeof d.category === 'string')
+      .map(d => ({ text: d.text, category: d.category }));
+  }
   const meta = readMeta(req.params.project);
-  meta.unshift({ id, savedAt: new Date().toISOString(), rating: null, hasReasoning: !!reasoning });
+  meta.unshift(entry);
   writeMeta(req.params.project, meta);
   res.json({ ok: true, id });
 });
@@ -121,7 +129,15 @@ app.patch('/api/renders/:project/:id', (req, res) => {
   const entry = meta.find(r => r.id === req.params.id);
   if (!entry) return res.status(404).json({ error: 'Not found' });
   entry.rating = req.body.rating ?? entry.rating;
-  entry.note   = req.body.note   ?? entry.note;
+  if (typeof req.body.note === 'string') {
+    if (req.body.note === '') delete entry.note;
+    else entry.note = req.body.note;
+  }
+  if ('grade' in req.body) {
+    const g = req.body.grade;
+    if (g === null) delete entry.grade;
+    else if (Number.isInteger(g) && g >= 1 && g <= 5) entry.grade = g;
+  }
   if (typeof req.body.name === 'string') {
     const trimmed = req.body.name.trim();
     if (trimmed) entry.name = trimmed;

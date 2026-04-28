@@ -12,11 +12,11 @@ Express app with two responsibilities: proxy the Anthropic API (so the API key n
 
 - `POST /api/generate` — Anthropic proxy. Forwards the request body to the Messages API and returns the raw response. API key read from `.env`.
 - `GET /api/projects/:name`, `POST /api/projects/:name`, `DELETE /api/projects/:name` — JSON files in `projects/`.
-- `POST /api/renders/:project` — saves a render. Accepts `{ html, reasoning }`. Stores `{id}.html` and `{id}.reasoning.txt` in `renders/{slug}/`. Updates `meta.json` (id, savedAt, rating, hasReasoning).
+- `POST /api/renders/:project` — saves a render. Accepts `{ html, reasoning, note?, grade?, pdlSnapshot? }`. Stores `{id}.html` and `{id}.reasoning.txt` in `renders/{slug}/`. Updates `meta.json` (id, savedAt, rating, hasReasoning, optional `note`, `grade`, `pdlSnapshot`).
 - `GET /api/renders/:project` — returns the meta array for a project.
 - `GET /api/renders/:project/:id` — returns the saved HTML.
 - `GET /api/renders/:project/:id/reasoning` — returns the saved reasoning text.
-- `PATCH /api/renders/:project/:id` — updates `rating` / `note` / `name` in `meta.json`. `name` is optional; an empty string deletes the field (falls back to default label).
+- `PATCH /api/renders/:project/:id` — updates `rating` / `note` / `grade` / `name` in `meta.json`. Empty-string `note` clears the field; `grade: null` clears it; valid grades are integers 1–5. `pdlSnapshot` is **write-once** at save time and ignored by PATCH. `name` empty string deletes the field (falls back to default label).
 - `DELETE /api/renders/:project/:id` — deletes both `{id}.html` and `{id}.reasoning.txt` and removes the row from `meta.json`.
 
 ## Frontend layout
@@ -32,11 +32,14 @@ editingId            // prevents toggleDecision firing during inline edit
 model                // 'haiku' | 'sonnet'
 activeTab            // left-panel tab: 'decisions' | 'prompt'
 
-// Render tabs (Phase 1.1)
-tabs[]               // [{ id, kind, renderId, name, html, reasoning, view, compareChecked }]
+// Render tabs (Phase 1.1, extended in Phase 2)
+tabs[]               // [{ id, kind, renderId, name, html, reasoning, view, compareChecked,
+                     //    note, grade, pdlSnapshot }]
 activeTabId          // currently focused render tab
 compareMode          // true while N-column compare view is active
 ```
+
+`note` is a free-text string (empty when absent), `grade` is an integer 1–5 or `null`, `pdlSnapshot` is `[{ text, category }]` of decisions active at generate time (or `null` for renders saved before Phase 2). The snapshot is captured by `generate()` and is write-once on save — there is no edit path.
 
 State lives in module-scope variables in `app.js`. Persistence is via `localStorage` (autosaved on every edit) and `/api/projects/:name` (manual save). Render tabs are **ephemeral** — not persisted across reload.
 
@@ -72,6 +75,18 @@ Each tab has a checkbox in the strip. Checking exactly two tabs auto-locks a **c
 - Closing either paired tab or unchecking either checkbox dissolves the pair immediately.
 
 The Save button is hidden whenever the split is currently visible (saving requires a single active tab).
+
+### Notes & grading (Phase 2)
+
+Each tab carries a `note`, `grade` (1–5), and `pdlSnapshot`. Access is via a single **Assess** button (popover with grade picker + note textarea):
+- **Single-pane view** — Assess button sits in the right-pane toolbar next to Save Render. Hidden while a compare pair is in split view.
+- **Split view** — each column header has its own Assess button so notes/grade are editable for either render in the pair.
+- **Tab strip** — only the grade badge appears (clickable: cycles 1→5→clear). No separate note indicator.
+- **Reasoning view** — shows the captured `pdlSnapshot` as a collapsible block (collapsed by default; primarily for AI consumption in Phase 2.5). Reasoning view does **not** duplicate the grade/note controls — Assess in the toolbar is the only entry point.
+
+The popover writes to the tab object immediately; for saved tabs, note edits debounce-PATCH and grade changes PATCH on click. Closing the popover (outside-click or Esc) flushes any pending PATCH. History rows show a numeric grade badge and a small note indicator.
+
+**Single source of truth**: tab object's `note` / `grade`. Tab-strip grade badge, toolbar Assess button label, split column Assess button, and the Assess popover all read from and write to the same fields.
 
 ### Reasoning block
 
