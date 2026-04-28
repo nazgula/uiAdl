@@ -62,15 +62,25 @@ Make the edit to `specs/roadmap.md`:
 
 Numbering principle: original phases keep their integer numbers for the life of the project. Anything added during replan gets a fractional number. Gaps from dropped phases are fine — stable numbers matter more than dense numbering.
 
-## Step 5 — Hand off
+## Step 5 — Commit on main and hand off
 
-Leave `specs/roadmap.md` modified in the working tree — **do not stage, commit, or push.** The roadmap edit is the entire deliverable; it will be picked up on the next phase branch when `/next-phase` runs (or by `/finish-phase` if it's still uncommitted at that point).
+Confirm the working tree has no other unstaged changes (only `specs/roadmap.md` should be modified). If there are unrelated changes, stop and tell the user — do not bundle them into the replan commit.
 
-Tell the user: *"Roadmap updated. Run `/next-phase` when ready."* Do **not** auto-run `/next-phase`.
+Then commit the roadmap change to `main`:
+
+```
+git add specs/roadmap.md
+git commit -m "Replan: <one-line summary of what changed>"
+```
+
+Use the `Replan:` prefix so the change is greppable in `git log`. Do not push.
+
+Tell the user: *"Roadmap updated and committed on main. Run `/next-phase` when ready."* Do **not** auto-run `/next-phase`.
 
 ## Hard constraints
 
 - Do not edit any file other than `specs/roadmap.md` in this skill. Architecture/tech-stack changes belong to phase work, not replanning.
-- Do not commit. Replan only edits the roadmap; the change is carried into the next phase branch by `/next-phase`.
+- Commit only `specs/roadmap.md`. If anything else is modified, abort and surface it to the user.
+- Do not push. The user controls remote pushes.
 - Do not run `/next-phase` automatically. The user invokes it when they're ready.
-- If the answer is "A — proceed as planned," touch nothing. Silence is the correct outcome.
+- If the answer is "A — proceed as planned," touch nothing — no edit, no commit. Silence is the correct outcome.

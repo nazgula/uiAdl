@@ -4,7 +4,21 @@ description: Start a new development phase from the PDL roadmap — creates a br
 disable-model-invocation: true
 ---
 
-Find the next phase in `specs/roadmap.md` (first phase with unchecked items) and make a git branch for it. Branch name: `<phase-slug>-<YYYY-MM-DD>` matching the spec folder.
+Find the next phase in `specs/roadmap.md` (first phase with unchecked items) and make a git branch for it.
+
+**Folder + branch naming**: `phase-<N>-<slug>-<YYYY-MM-DD>` where `<N>` is the phase number from the roadmap heading. Replace `.` with `_` for fractional phases so the name is filesystem-safe and unambiguous. Examples:
+
+- Phase 2 → `phase-2-render-notes-grading-2026-04-28`
+- Phase 1.1 → `phase-1_1-render-compare-2026-04-28`
+- Phase 2.5 → `phase-2_5-prompt-improvement-consult-2026-05-10`
+
+The spec folder and the git branch must match exactly.
+
+## Step 0 — Working-tree check
+
+Before reading anything else, run `git status` and `git diff --stat`. The only acceptable uncommitted change is `specs/roadmap.md` (a `/replan` edit that wasn't committed yet). If anything else is dirty, **stop** and tell the user what's outstanding — do not cut a branch on top of unrelated in-progress work.
+
+If `specs/roadmap.md` is the only modified file, surface it explicitly: *"Found uncommitted roadmap edit from /replan — I'll commit it to main as a `Replan:` commit before cutting the phase branch."* Do that commit first (on `main`), then proceed. This keeps the replan record on `main` where it belongs, not buried inside the phase branch.
 
 ## Step 1 — Read the constitution before designing
 
