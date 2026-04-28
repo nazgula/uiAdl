@@ -469,9 +469,9 @@ function showSplit() {
         <span class="text-xs font-mono ${isActive ? 'text-indigo-700 font-semibold' : 'text-gray-600'} truncate">${escHtml(tab.name)}</span>
       </div>
       <div class="flex-1 relative overflow-hidden">
-        <iframe data-cmp-frame class="w-full h-full bg-white ${view === 'render' ? '' : 'hidden'}" sandbox="allow-scripts allow-same-origin"></iframe>
-        <pre data-cmp-source class="${view === 'source' ? '' : 'hidden'} text-xs font-mono p-3 h-full overflow-auto text-gray-700 whitespace-pre-wrap"></pre>
-        <div data-cmp-reasoning class="${view === 'reasoning' ? '' : 'hidden'} text-sm text-gray-700 whitespace-pre-wrap p-4 overflow-auto h-full"></div>
+        <iframe data-cmp-frame class="absolute inset-0 w-full h-full bg-white ${view === 'render' ? '' : 'hidden'}" sandbox="allow-scripts allow-same-origin"></iframe>
+        <pre data-cmp-source class="absolute inset-0 ${view === 'source' ? '' : 'hidden'} text-xs font-mono p-3 overflow-auto text-gray-700 whitespace-pre-wrap m-0 bg-white"></pre>
+        <div data-cmp-reasoning class="absolute inset-0 ${view === 'reasoning' ? '' : 'hidden'} text-sm text-gray-700 whitespace-pre-wrap p-4 overflow-auto bg-white"></div>
       </div>`;
     container.appendChild(col);
     if (view === 'render' && tab.html) renderPreview(tab.html, col.querySelector('[data-cmp-frame]'));
