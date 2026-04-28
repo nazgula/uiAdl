@@ -1,6 +1,6 @@
 # Phase 2.5 — Plan
 
-Status: 1 [x], 2 [ ], 3 [ ], 4 [ ], 5 [ ], 6 [ ], 7 [ ]
+Status: 1 [x], 2 [x], 3 [x], 4 [x], 5 [x], 6 [ ], 7 [x]
 
 ## 1. [x] Prompts registry — backend + storage
 
@@ -12,7 +12,7 @@ Status: 1 [x], 2 [ ], 3 [ ], 4 [ ], 5 [ ], 6 [ ], 7 [ ]
 - `PUT /api/prompts/active` — body `{ id }`. Updates `activeVersionId` only. (Used by version dropdown.)
 - Update `.gitignore` if needed for `prompts.json`.
 
-## 2. [ ] Frontend — version registry wiring
+## 2. [x] Frontend — version registry wiring
 
 - On app load, fetch `/api/prompts`. Cache in module-scope `prompts` and `activePromptVersionId`.
 - The left-panel Prompt tab renders:
@@ -21,7 +21,7 @@ Status: 1 [x], 2 [ ], 3 [ ], 4 [ ], 5 [ ], 6 [ ], 7 [ ]
 - Hand-editing the textarea no longer mutates the registry. (Local edits are project-scope, persisted via project file as today. Versions are immutable.)
 - Update `generate()` to read the current `activePromptVersionId` and stamp it onto the new live tab (`tab.promptVersionId`).
 
-## 3. [ ] Consult call — bundle + send
+## 3. [x] Consult call — bundle + send
 
 - New function `runImprovementConsult()`:
   - Gather graded saved renders for the current project — meta entries with `grade != null`.
@@ -33,7 +33,7 @@ Status: 1 [x], 2 [ ], 3 [ ], 4 [ ], 5 [ ], 6 [ ], 7 [ ]
 - "Improve generation prompt" button on the Prompt tab kicks this off. Disabled state with helper text below threshold.
 - Loading indicator while in flight.
 
-## 4. [ ] Review modal
+## 4. [x] Review modal
 
 - Modal component (Tailwind) shows:
   - **Diff panel** — line-level diff of `current activeVersion.text` → `proposedPrompt`. Use a tiny in-file diff helper (no library — diff at line granularity is ~30 lines of code).
@@ -43,7 +43,7 @@ Status: 1 [x], 2 [ ], 3 [ ], 4 [ ], 5 [ ], 6 [ ], 7 [ ]
   - **Save as v(N+1)** button — POSTs to `/api/prompts` with `{ text: textarea.value, parentId: activeVersionId, summary: <auto-derived first line of limitsNotes or empty> }`. On success, refresh registry, set new version active, close modal.
   - **Cancel** button — discards the proposal, no write.
 
-## 5. [ ] Render → version linkage
+## 5. [x] Render → version linkage
 
 - `tabs[]` already extended for Phase 2. Add `promptVersionId` field. `generate()` stamps it from `activePromptVersionId`.
 - `POST /api/renders/:project` accepts `promptVersionId` and writes it into the meta row.
@@ -59,7 +59,7 @@ Status: 1 [x], 2 [ ], 3 [ ], 4 [ ], 5 [ ], 6 [ ], 7 [ ]
 - Update "Notes & grading" section header → cross-reference Phase 2.5's consult flow.
 - Update `tech-stack.md` only if `prompts.json` is added to the storage list (yes, it should be — alongside `config.json`).
 
-## 7. [ ] Tests
+## 7. [x] Tests
 
 - Playwright tests:
   - Improve button is disabled with fewer than 3 graded renders; tooltip/helper text explains why.
