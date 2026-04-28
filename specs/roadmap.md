@@ -90,21 +90,21 @@ Reduce surface area before the reasoning loop. Remove unused capabilities and ti
 
 ---
 
-## Phase 1.1 — Render Compare (NEXT)
+## Phase 1.1 — Render Compare
 
 Side-by-side comparison of renders. Built before the reasoning loop because grading reasoning is meaningless until you've actually compared a bunch — you need to *see* what good looks like before you can encode it as a score.
 
-- [ ] **Multi-tab render area**: open multiple renders (live or saved) into tabs above the render area; History row click opens or focuses a tab
-- [ ] **Live tab guard**: the most recent freshly-generated render shows a confirm() dialog when closing via the tab X; other unsaved/saved tabs close without prompt
-- [ ] **Generate demotion**: a new Generate demotes the previous live tab to a regular unsaved tab and creates a new live tab
-- [ ] **Save button scope**: visible only on unsaved tabs; hidden on saved tabs
-- [ ] **Per-tab lockstep**: Preview/Source/Reasoning stay in lockstep within each tab; switching tabs restores that tab's view
-- [ ] **Compare pair (locked split)**: checking a second tab's checkbox auto-locks a 2-tab pair (no Compare button). While paired, other checkboxes are disabled. Clicking either paired tab shows a 2-column split; clicking any non-paired tab returns to single view. Top toolbar Preview/Source/Reasoning controls both columns at once. Closing or unchecking a paired tab dissolves the pair.
-- [ ] **Rename saved render**: pencil affordance on History rows inline-edits the name; persists in `meta.json`; tab labels update live
+- [x] **Multi-tab render area**: open multiple renders (live or saved) into tabs above the render area; History row click opens or focuses a tab
+- [x] **Live tab guard**: the most recent freshly-generated render shows a confirm() dialog when closing via the tab X; other unsaved/saved tabs close without prompt
+- [x] **Generate demotion**: a new Generate demotes the previous live tab to a regular unsaved tab and creates a new live tab
+- [x] **Save button scope**: visible only on unsaved tabs; hidden on saved tabs
+- [x] **Per-tab lockstep**: Preview/Source/Reasoning stay in lockstep within each tab; switching tabs restores that tab's view
+- [x] **Compare pair (locked split)**: checking a second tab's checkbox auto-locks a 2-tab pair (no Compare button). While paired, other checkboxes are disabled. Clicking either paired tab shows a 2-column split; clicking any non-paired tab returns to single view. Top toolbar Preview/Source/Reasoning controls both columns at once. Closing or unchecking a paired tab dissolves the pair.
+- [x] **Rename saved render**: pencil affordance on History rows inline-edits the name; persists in `meta.json`; tab labels update live
 
 ---
 
-## Phase 2 — Reasoning Quality Loop
+## Phase 2 — Reasoning Quality Loop (NEXT)
 
 Make reasoning useful as a learning signal, not just a log.
 

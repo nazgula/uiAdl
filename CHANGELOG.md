@@ -2,6 +2,15 @@
 
 Notable changes per phase. See `specs/roadmap.md` for the full plan.
 
+## 2026-04-28 — Phase 1.1: Render Compare
+
+- The render area is now multi-tabbed. Each generated or History-opened render lives in its own tab; Preview/Source/Reasoning stay in lockstep within a tab and each tab remembers its own view selection.
+- The most recent unsaved generation is the "live" tab — closing it via the tab X confirms first. Generating again demotes the previous live to a regular closeable unsaved tab.
+- Clicking a History row opens the render in a new tab, or focuses an already-open tab for that render. Deleting a render also closes its open tab.
+- New compare flow: checking the second tab auto-locks a 2-tab pair (no Compare button). Clicking either paired tab shows a 2-column split; the top toolbar Preview/Source/Reasoning drives both columns at once. Clicking any non-paired tab returns to single view. Closing or unchecking either paired tab dissolves the pair.
+- Saved renders can be renamed inline from a History row via a pencil affordance. The name shows in History and as the tab label, and persists in `meta.json` (`PATCH /api/renders/:project/:id` now accepts `name`).
+- The frontend state is no longer keyed off `lastHTML` / `lastReasoning` singletons — it's now a `tabs[]` array with `activeTabId`. `architecture.md` updated to match.
+
 ## 2026-04-28 — Phase 1: UI Cleanup
 
 - Removed Refine PDL: the left-panel tab, the refine prompt, the API call, and the `refinePrompt` field on saved projects are all gone.
