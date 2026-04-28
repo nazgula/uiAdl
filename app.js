@@ -366,13 +366,20 @@ function setView(v) {
   }
 }
 
-// Render the active tab's content into the singleton preview elements,
-// and reflect the tab's chosen view (preview/source/reasoning/history).
+// Show the single-tab preview panel for view `v`. Hides the other panels.
+// Skipped when in split — showSplit() controls visibility itself.
 function applyView(v) {
   const views = ['render', 'source', 'reasoning', 'history'];
   views.forEach(name => {
     document.getElementById('preview-' + name).classList.toggle('hidden', name !== v);
     if (name === 'render') document.getElementById('preview-render').classList.toggle('flex', v === 'render');
+  });
+  styleViewButtons(v);
+}
+
+// Highlight the active view button in the top toolbar without changing panel visibility.
+function styleViewButtons(v) {
+  ['render', 'source', 'reasoning', 'history'].forEach(name => {
     const btn = document.getElementById('view-' + name);
     if (!btn) return;
     const isHistory = name === 'history';
@@ -444,9 +451,11 @@ function showSplit() {
   const view = (getActiveTab().view) || 'render';
   // Hide single-view panels
   ['render','source','reasoning','history'].forEach(v => {
-    document.getElementById('preview-' + v).classList.add('hidden');
+    const el = document.getElementById('preview-' + v);
+    el.classList.add('hidden');
+    if (v === 'render') el.classList.remove('flex');
   });
-  applyView(view); // top toolbar still reflects the active view
+  styleViewButtons(view);
   const container = document.getElementById('preview-compare');
   container.classList.remove('hidden');
   container.innerHTML = '';

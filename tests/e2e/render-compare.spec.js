@@ -177,6 +177,11 @@ test('checking the second tab auto-locks a compare pair and splits the render ar
   await page.locator('#tab-strip .render-tab').nth(0).click();
   await expect(compareView).toBeVisible();
   await expect(compareView.locator('.compare-col')).toHaveCount(2);
+  // Single-view panels are all hidden — no double-render
+  await expect(page.locator('#preview-render')).toBeHidden();
+  await expect(page.locator('#preview-source')).toBeHidden();
+  await expect(page.locator('#preview-reasoning')).toBeHidden();
+  await expect(page.locator('#preview-history')).toBeHidden();
 
   // Top P/S/R buttons control both columns at once. Switch to Source.
   await page.click('#view-source');
