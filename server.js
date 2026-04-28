@@ -51,20 +51,6 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
-// ─── Proxy: load project from URL ─────────────────────────────
-app.post('/api/load-url', async (req, res) => {
-  const { url } = req.body;
-  if (!url || !url.startsWith('http')) return res.status(400).json({ error: 'Invalid URL' });
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    res.json(data);
-  } catch (err) {
-    res.status(502).json({ error: `Could not fetch URL: ${err.message}` });
-  }
-});
-
 // ─── Projects: list ───────────────────────────────────────────
 app.get('/api/projects', (req, res) => {
   const files = fs.readdirSync(PROJECTS_DIR)
