@@ -629,6 +629,15 @@ function setTabGrade(tabId, grade) {
     refreshAssessPopoverGrade();
   }
   updateAssessButtonState();
+  // Keep history-meta cache + Improve threshold in sync for saved renders.
+  if (t.kind === 'saved' && t.renderId && Array.isArray(lastHistoryMeta)) {
+    const row = lastHistoryMeta.find(r => r.id === t.renderId);
+    if (row) {
+      if (Number.isInteger(t.grade)) row.grade = t.grade;
+      else delete row.grade;
+    }
+    if (typeof updateImproveButton === 'function') updateImproveButton();
+  }
 }
 
 function cycleTabGrade(tabId, ev) {
@@ -1246,10 +1255,12 @@ async function runImprovementConsult() {
   try {
     const renders = await Promise.all(graded.map(async (r) => {
       let reasoning = '';
-      try {
-        const rr = await fetch(`/api/renders/${slug}/${r.id}/reasoning`);
-        if (rr.ok) reasoning = await rr.text();
-      } catch {}
+      if (r.hasReasoning) {
+        try {
+          const rr = await fetch(`/api/renders/${slug}/${r.id}/reasoning`);
+          if (rr.ok) reasoning = await rr.text();
+        } catch {}
+      }
       return {
         id: r.id,
         name: r.name || defaultRenderLabel(r),
@@ -1277,7 +1288,8 @@ async function runImprovementConsult() {
     pendingProposal = { ...parsed, renders };
     openImprovementModal();
   } catch(e) {
-    showError(e.message);
+    console.error('Consult failed:', e);
+    showError('Improve failed: ' + e.message);
   } finally {
     btn.textContent = 'Improve';
     updateImproveButton();
