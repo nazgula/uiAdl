@@ -27,6 +27,34 @@
     .render-tab .tab-x:hover { color:#ef4444; background:#fee2e2; }
     .compare-col { display:flex; flex-direction:column; min-width:0; flex:1; border-right:1px solid #e5e7eb; }
     .compare-col:last-child { border-right:none; }
+    /* Grade badge + note indicator (Phase 2) */
+    .tab-grade { font-size:10px; padding:0 5px; height:14px; line-height:14px; border-radius:7px; min-width:14px; text-align:center; cursor:pointer; user-select:none; }
+    .tab-grade.set { background:#eef2ff; color:#4338ca; font-weight:600; }
+    .tab-grade.empty { background:#f3f4f6; color:#9ca3af; }
+    .tab-grade:hover { filter:brightness(0.97); }
+    /* Assess popover (grade + note in one) */
+    .assess-popover { position:fixed; z-index:50; background:#fff; border:1px solid #d1d5db; border-radius:8px; padding:10px; box-shadow:0 6px 16px rgba(0,0,0,0.1); width:300px; }
+    .assess-popover .ap-row { display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+    .assess-popover .ap-label { font-size:10px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.05em; }
+    .assess-popover textarea { width:100%; height:90px; font-size:12px; border:1px solid #e5e7eb; border-radius:4px; padding:6px; resize:none; outline:none; font-family:inherit; }
+    .assess-popover .ap-clear { font-size:11px; color:#9ca3af; background:none; border:none; cursor:pointer; padding:0 4px; }
+    .assess-popover .ap-clear:hover { color:#ef4444; }
+    .assess-btn-col { font-size:11px; padding:2px 8px; border:1px solid #e5e7eb; border-radius:4px; background:#fff; color:#4b5563; cursor:pointer; line-height:1.3; }
+    .assess-btn-col:hover { border-color:#a5b4fc; color:#4f46e5; }
+    .assess-btn-col.has-note { border-color:#a5b4fc; color:#4f46e5; }
+    /* History row indicators */
+    .hist-grade { display:inline-block; min-width:18px; padding:0 6px; border-radius:9px; font-size:11px; font-weight:600; text-align:center; }
+    .hist-grade.set { background:#eef2ff; color:#4338ca; }
+    .hist-grade.empty { background:#f3f4f6; color:#9ca3af; }
+    .hist-note { color:#4f46e5; font-weight:700; font-size:11px; }
+    /* Reasoning panel grade picker */
+    .grade-pick { width:24px; height:24px; border-radius:6px; border:1px solid #e5e7eb; background:#fff; font-size:12px; cursor:pointer; color:#4b5563; }
+    .grade-pick.active { background:#4f46e5; color:#fff; border-color:#4338ca; }
+    .grade-pick:hover { border-color:#a5b4fc; }
+    .pdl-snapshot-block { background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px; padding:10px 12px; font-size:12px; }
+    .pdl-snapshot-cat { font-weight:600; text-transform:uppercase; color:#6b7280; font-size:10px; letter-spacing:0.05em; margin-top:6px; }
+    .pdl-snapshot-cat:first-child { margin-top:0; }
+    .pdl-snapshot-item { color:#374151; padding:1px 0; }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -173,6 +201,8 @@
       </div>
       <div class="flex gap-2 items-center">
         <span id="compare-status" class="hidden text-xs text-indigo-500 font-medium">Comparing 2 renders</span>
+        <button id="assess-btn" onclick="openAssessPopover(null, event)"
+          class="hidden text-xs px-3 py-1 rounded border border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600 transition font-medium">Assess</button>
         <button id="save-render-btn" onclick="saveRender()"
           class="hidden text-xs px-3 py-1 rounded border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition font-medium">Save Render</button>
       </div>
@@ -224,7 +254,18 @@
         </svg>
         <p id="reasoning-empty-msg" class="text-sm">No reasoning yet — generate a render to see one.</p>
       </div>
-      <div id="reasoning-content" class="hidden bg-white rounded-lg border border-gray-200 p-5 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed"></div>
+      <div id="reasoning-content-wrap" class="hidden space-y-4">
+        <!-- Snapshot (collapsed by default) -->
+        <div id="reasoning-snapshot-wrap" class="bg-white rounded-lg border border-gray-200">
+          <button id="reasoning-snapshot-toggle" onclick="toggleSnapshot()" type="button"
+            class="w-full flex items-center justify-between px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-700 transition">
+            <span>Active PDL at generate time</span>
+            <span id="reasoning-snapshot-caret" class="text-gray-400">+</span>
+          </button>
+          <div id="reasoning-snapshot" class="hidden px-4 pb-3"></div>
+        </div>
+        <div id="reasoning-content" class="bg-white rounded-lg border border-gray-200 p-5 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed"></div>
+      </div>
     </div>
 
     <!-- Compare view -->

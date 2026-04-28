@@ -10,6 +10,7 @@ let activeTab = 'decisions';
 let tabs = [];
 let activeTabId = null;
 let nextTabId = 1;
+let lastHistoryMeta = []; // cached meta from /api/renders for snapshot/note/grade lookups
 
 function getActiveTab() { return tabs.find(t => t.id === activeTabId) || null; }
 function findTabByRenderId(renderId) { return tabs.find(t => t.renderId === renderId) || null; }
@@ -464,9 +465,12 @@ function showSplit() {
     const col = document.createElement('div');
     col.className = 'compare-col';
     col.dataset.tabId = tab.id;
+    const hasAssess = (tab.note && tab.note.trim()) || Number.isInteger(tab.grade);
+    const gradeStr = Number.isInteger(tab.grade) ? ' · ' + tab.grade : '';
     col.innerHTML = `
-      <div class="px-3 py-2 border-b border-gray-200 ${isActive ? 'bg-indigo-50' : 'bg-gray-50'}">
-        <span class="text-xs font-mono ${isActive ? 'text-indigo-700 font-semibold' : 'text-gray-600'} truncate">${escHtml(tab.name)}</span>
+      <div class="px-3 py-2 border-b border-gray-200 flex items-center justify-between gap-2 ${isActive ? 'bg-indigo-50' : 'bg-gray-50'}">
+        <span class="text-xs font-mono flex-1 truncate ${isActive ? 'text-indigo-700 font-semibold' : 'text-gray-600'}">${escHtml(tab.name)}</span>
+        <button type="button" data-assess-col class="assess-btn-col ${hasAssess ? 'has-note' : ''}">Assess${gradeStr}</button>
       </div>
       <div class="flex-1 relative overflow-hidden">
         <iframe data-cmp-frame class="absolute inset-0 w-full h-full bg-white ${view === 'render' ? '' : 'hidden'}" sandbox="allow-scripts allow-same-origin"></iframe>
@@ -479,7 +483,18 @@ function showSplit() {
     if (view === 'reasoning') col.querySelector('[data-cmp-reasoning]').textContent =
       tab.reasoning || '(no reasoning saved for this render)';
     // Click on a column header focuses that tab
-    col.querySelector('div').addEventListener('click', () => setActiveTabId(tab.id));
+    col.querySelector('div').addEventListener('click', (e) => {
+      // Don't focus when clicking the Assess button itself (it has its own handler)
+      if (e.target.closest('[data-assess-col]')) return;
+      setActiveTabId(tab.id);
+    });
+    const assessBtn = col.querySelector('[data-assess-col]');
+    if (assessBtn) {
+      assessBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openAssessPopover(tab.id, e);
+      });
+    }
   });
 }
 
@@ -496,17 +511,51 @@ function copySource() {
 
 function showReasoning(text, emptyMsg) {
   const empty = document.getElementById('reasoning-empty');
+  const wrap = document.getElementById('reasoning-content-wrap');
   const content = document.getElementById('reasoning-content');
   const msg = document.getElementById('reasoning-empty-msg');
-  if (text && text.trim()) {
+  const t = getActiveTab();
+  // Wrap is shown whenever there is an active tab (so note/grade/snapshot are
+  // editable even before reasoning text exists). Empty placeholder only shows
+  // when there is no active tab at all.
+  if (t) {
     empty.classList.add('hidden');
-    content.textContent = text;
-    content.classList.remove('hidden');
+    wrap.classList.remove('hidden');
+    if (text && text.trim()) {
+      content.textContent = text;
+      content.classList.remove('hidden');
+    } else {
+      content.textContent = '';
+      content.classList.add('hidden');
+    }
+    syncReasoningPanelControls();
   } else {
-    content.classList.add('hidden');
+    wrap.classList.add('hidden');
     content.textContent = '';
     empty.classList.remove('hidden');
     if (msg) msg.textContent = emptyMsg || 'No reasoning yet — generate a render to see one.';
+  }
+}
+
+function syncReasoningPanelControls() {
+  const t = getActiveTab();
+  const snap = document.getElementById('reasoning-snapshot');
+  if (!snap || !t) return;
+  if (Array.isArray(t.pdlSnapshot) && t.pdlSnapshot.length) {
+    const cats = ['flow','ui','constraint','entity'];
+    const others = t.pdlSnapshot.filter(d => !cats.includes(d.category)).map(d => d.category);
+    const order = cats.concat([...new Set(others)]);
+    snap.innerHTML = '<div class="pdl-snapshot-block">' +
+      order.map(cat => {
+        const items = t.pdlSnapshot.filter(d => d.category === cat);
+        if (!items.length) return '';
+        return `<div class="pdl-snapshot-cat">${escHtml(cat)}</div>` +
+          items.map(d => `<div class="pdl-snapshot-item">• ${escHtml(d.text)}</div>`).join('');
+      }).join('') + '</div>';
+  } else if (Array.isArray(t.pdlSnapshot)) {
+    snap.innerHTML = '<div class="pdl-snapshot-block text-gray-400">No active decisions at generate time.</div>';
+  } else {
+    snap.innerHTML = '<div class="pdl-snapshot-block text-gray-400">Snapshot not captured (pre-Phase 2 render).</div>';
   }
 }
 
@@ -518,6 +567,7 @@ function addTab(t) {
 }
 
 function setActiveTabId(id) {
+  if (assessPopoverState && assessPopoverState.tabId !== id) closeTabNote();
   activeTabId = id;
   renderTabStrip();
   renderActiveTab();
@@ -530,6 +580,7 @@ function closeTab(tabId, ev) {
   if (tab.kind === 'live') {
     if (!confirm('This render is unsaved. Close anyway?')) return;
   }
+  if (assessPopoverState && assessPopoverState.tabId === tabId) closeTabNote();
   const idx = tabs.indexOf(tab);
   tabs.splice(idx, 1);
   if (activeTabId === tabId) {
@@ -578,10 +629,199 @@ function renderTabStrip() {
       title="${disabled ? 'A compare pair is already locked' : 'Include in compare'}" />`;
     const x = `<span class="tab-x" onclick="closeTab(${t.id}, event)" title="Close">✕</span>`;
     const liveDot = t.kind === 'live' ? '<span class="text-indigo-500" title="Unsaved live render">●</span>' : '';
+    const gradeSet = Number.isInteger(t.grade);
+    const gradeBadge = `<span class="tab-grade ${gradeSet ? 'set' : 'empty'}"
+      onclick="cycleTabGrade(${t.id}, event)"
+      title="${gradeSet ? 'Grade ' + t.grade + ' (click to change)' : 'Grade — click to set 1-5'}">${gradeSet ? t.grade : '·'}</span>`;
     return `<div class="${cls.join(' ')}" onclick="setActiveTabId(${t.id})">
-      ${checkbox}${liveDot}<span class="tab-name">${escHtml(t.name)}</span>${x}
+      ${checkbox}${liveDot}<span class="tab-name">${escHtml(t.name)}</span>${gradeBadge}${x}
     </div>`;
   }).join('');
+}
+
+// ─── Per-tab note + grade (shared Assess popover) ─────────────
+let assessPopoverState = null; // { tabId, el, debounceId }
+// Backwards alias kept so any stale callers don't NPE
+function closeTabNote() { closeAssessPopover(); }
+
+function patchTabMeta(t, fields) {
+  if (!t || t.kind !== 'saved' || !t.renderId) return;
+  const slug = projectSlug();
+  fetch(`/api/renders/${slug}/${t.renderId}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(fields)
+  }).catch(() => {});
+}
+
+function setTabGrade(tabId, grade) {
+  const t = tabs.find(x => x.id === tabId);
+  if (!t) return;
+  t.grade = Number.isInteger(grade) && grade >= 1 && grade <= 5 ? grade : null;
+  patchTabMeta(t, { grade: t.grade });
+  renderTabStrip();
+  if (assessPopoverState && assessPopoverState.tabId === tabId) {
+    refreshAssessPopoverGrade();
+  }
+  updateAssessButtonState();
+}
+
+function cycleTabGrade(tabId, ev) {
+  if (ev) ev.stopPropagation();
+  const t = tabs.find(x => x.id === tabId);
+  if (!t) return;
+  const cur = Number.isInteger(t.grade) ? t.grade : 0;
+  const next = cur >= 5 ? null : cur + 1;
+  setTabGrade(tabId, next);
+}
+
+function setTabNote(tabId, note) {
+  const t = tabs.find(x => x.id === tabId);
+  if (!t) return;
+  t.note = note;
+  if (t.kind === 'saved' && t.renderId
+      && assessPopoverState && assessPopoverState.tabId === tabId) {
+    clearTimeout(assessPopoverState.debounceId);
+    assessPopoverState.debounceId = setTimeout(() => {
+      patchTabMeta(t, { note: t.note || '' });
+    }, 400);
+  }
+  updateAssessButtonState();
+}
+
+// Open the Assess popover for a tab. tabId=null means active tab.
+// Anchor is taken from the click event's currentTarget (the button itself).
+function openAssessPopover(tabId, ev) {
+  if (ev) ev.stopPropagation();
+  const targetId = tabId == null ? activeTabId : tabId;
+  const tab = tabs.find(x => x.id === targetId);
+  if (!tab) return;
+  // Toggle close if already open for same tab
+  if (assessPopoverState && assessPopoverState.tabId === targetId) {
+    closeAssessPopover();
+    return;
+  }
+  closeAssessPopover();
+  const anchor = ev && ev.currentTarget;
+  const pop = document.createElement('div');
+  pop.className = 'assess-popover';
+  pop.innerHTML = `
+    <div class="ap-row">
+      <span class="ap-label">Grade</span>
+      <div class="ap-grade flex gap-1"></div>
+      <button type="button" class="ap-clear" title="Clear grade">clear</button>
+    </div>
+    <div>
+      <span class="ap-label" style="display:block; margin-bottom:4px;">Note</span>
+      <textarea class="ap-note" placeholder="Note about this render…"></textarea>
+    </div>`;
+  document.body.appendChild(pop);
+  if (anchor) {
+    const rect = anchor.getBoundingClientRect();
+    const popW = 300;
+    let left = rect.right - popW; // right-align under button
+    if (left < 8) left = 8;
+    pop.style.top = (rect.bottom + 6) + 'px';
+    pop.style.left = left + 'px';
+  }
+  // Wire grade buttons
+  const gradeWrap = pop.querySelector('.ap-grade');
+  function renderGrades() {
+    const cur = Number.isInteger(tab.grade) ? tab.grade : null;
+    gradeWrap.innerHTML = [1,2,3,4,5].map(n =>
+      `<button type="button" data-g="${n}" class="grade-pick ${cur === n ? 'active' : ''}">${n}</button>`
+    ).join('');
+    gradeWrap.querySelectorAll('button').forEach(b => {
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        const n = Number(b.dataset.g);
+        const next = (Number.isInteger(tab.grade) && tab.grade === n) ? null : n;
+        setTabGrade(targetId, next);
+      });
+    });
+  }
+  renderGrades();
+  pop.querySelector('.ap-clear').addEventListener('click', e => {
+    e.stopPropagation();
+    setTabGrade(targetId, null);
+  });
+  // Note textarea
+  const ta = pop.querySelector('.ap-note');
+  ta.value = tab.note || '';
+  setTimeout(() => ta.focus(), 0);
+  ta.addEventListener('input', () => setTabNote(targetId, ta.value));
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); closeAssessPopover(); }
+  });
+  assessPopoverState = { tabId: targetId, el: pop, debounceId: null, renderGrades };
+  setTimeout(() => document.addEventListener('mousedown', assessOutsideClick), 0);
+}
+
+function refreshAssessPopoverGrade() {
+  if (assessPopoverState && assessPopoverState.renderGrades) {
+    assessPopoverState.renderGrades();
+  }
+}
+
+function assessOutsideClick(e) {
+  if (!assessPopoverState) return;
+  if (assessPopoverState.el.contains(e.target)) return;
+  // Allow re-clicking the same anchor button to toggle (handled by openAssessPopover)
+  closeAssessPopover();
+}
+
+function closeAssessPopover() {
+  if (!assessPopoverState) {
+    document.removeEventListener('mousedown', assessOutsideClick);
+    return;
+  }
+  const tab = tabs.find(x => x.id === assessPopoverState.tabId);
+  if (tab && tab.kind === 'saved' && tab.renderId) {
+    clearTimeout(assessPopoverState.debounceId);
+    patchTabMeta(tab, { note: tab.note || '' });
+  }
+  assessPopoverState.el.remove();
+  assessPopoverState = null;
+  document.removeEventListener('mousedown', assessOutsideClick);
+}
+
+function updateAssessButtonState() {
+  const btn = document.getElementById('assess-btn');
+  if (btn) {
+    const t = getActiveTab();
+    if (!t || isInSplit()) {
+      btn.classList.add('hidden');
+    } else {
+      btn.classList.remove('hidden');
+      btn.textContent = 'Assess' + (Number.isInteger(t.grade) ? ' · ' + t.grade : '');
+    }
+  }
+  // Update split column Assess buttons in place (avoid re-rendering split, which
+  // would steal focus from any open popover anchored to the button).
+  document.querySelectorAll('#preview-compare .compare-col').forEach(col => {
+    const tabId = Number(col.dataset.tabId);
+    const tab = tabs.find(x => x.id === tabId);
+    const colBtn = col.querySelector('[data-assess-col]');
+    if (!tab || !colBtn) return;
+    const has = (tab.note && tab.note.trim()) || Number.isInteger(tab.grade);
+    colBtn.classList.toggle('has-note', !!has);
+    colBtn.textContent = 'Assess' + (Number.isInteger(tab.grade) ? ' · ' + tab.grade : '');
+  });
+}
+
+// Snapshot collapse/expand
+function toggleSnapshot() {
+  const body = document.getElementById('reasoning-snapshot');
+  const caret = document.getElementById('reasoning-snapshot-caret');
+  if (!body) return;
+  const open = !body.classList.contains('hidden');
+  if (open) {
+    body.classList.add('hidden');
+    if (caret) caret.textContent = '+';
+  } else {
+    body.classList.remove('hidden');
+    if (caret) caret.textContent = '−';
+  }
 }
 
 function updateSaveButton() {
@@ -595,6 +835,7 @@ function updateSaveButton() {
   } else {
     btn.classList.add('hidden');
   }
+  updateAssessButtonState();
 }
 
 // ─── Generate ─────────────────────────────────────────────────
@@ -611,7 +852,7 @@ async function generate() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         model: MODELS[model].id,
-        max_tokens: 8192,
+        max_tokens: 16384,
         messages: [{ role: 'user', content: document.getElementById('prompt-preview').value.trim() || buildFullPrompt() }]
       })
     });
@@ -638,6 +879,11 @@ async function generate() {
     const prevLive = liveTab();
     if (prevLive) prevLive.kind = 'unsaved';
 
+    // Snapshot of active decisions at generate time (write-once on save)
+    const pdlSnapshot = decisions
+      .filter(d => d.active)
+      .map(d => ({ text: d.text, category: d.category }));
+
     // Create a new live tab and focus it
     const stamp = new Date();
     const defaultName = `New render ${stamp.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })}`;
@@ -647,7 +893,10 @@ async function generate() {
       name: defaultName,
       html,
       reasoning,
-      view: 'render'
+      view: 'render',
+      note: '',
+      grade: null,
+      pdlSnapshot
     });
     setActiveTabId(tab.id);
 
@@ -724,7 +973,14 @@ async function saveRender() {
     const res = await fetch(`/api/renders/${slug}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ html: t.html, reasoning: t.reasoning, name: t.name })
+      body: JSON.stringify({
+        html: t.html,
+        reasoning: t.reasoning,
+        name: t.name,
+        note: t.note || '',
+        grade: Number.isInteger(t.grade) ? t.grade : null,
+        pdlSnapshot: Array.isArray(t.pdlSnapshot) ? t.pdlSnapshot : []
+      })
     });
     if (!res.ok) throw new Error('Save failed');
     const { id } = await res.json();
@@ -760,6 +1016,7 @@ async function loadHistory() {
   try {
     const res  = await fetch(`/api/renders/${slug}`);
     const meta = await res.json();
+    lastHistoryMeta = meta;
     if (!meta.length) { emptyEl.classList.remove('hidden'); listEl.classList.add('hidden'); return; }
     emptyEl.classList.add('hidden');
     listEl.classList.remove('hidden');
@@ -768,11 +1025,18 @@ async function loadHistory() {
       const ratingClass = r.rating === 'good' ? 'text-green-600 font-semibold' :
                           r.rating === 'bad'  ? 'text-red-500 font-semibold' : 'text-gray-400';
       const safeLabel = escHtml(label).replace(/'/g, "\\'");
+      const gradeSet = Number.isInteger(r.grade);
+      const gradeBadge = `<span class="hist-grade ${gradeSet ? 'set' : 'empty'}" title="${gradeSet ? 'Grade ' + r.grade : 'No grade'}">${gradeSet ? r.grade : '·'}</span>`;
+      const noteInd = r.note && r.note.trim()
+        ? `<span class="hist-note" title="Has note">◆</span>`
+        : `<span class="text-gray-200 text-xs" title="No note">◇</span>`;
       return `<div class="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50 transition group" data-render-id="${r.id}">
         <button onclick="viewRender('${slug}','${r.id}', '${safeLabel}')"
           class="flex-1 text-left text-sm text-gray-700 font-mono history-label">${escHtml(label)}</button>
         <button onclick="renderRenameStart('${slug}','${r.id}', this)" title="Rename"
           class="text-xs px-2 py-1 rounded border border-gray-200 hover:border-indigo-300 hover:text-indigo-500 transition text-gray-300 opacity-0 group-hover:opacity-100">✎</button>
+        ${gradeBadge}
+        ${noteInd}
         <span class="${ratingClass} text-xs w-12 text-center">
           ${r.rating === 'good' ? 'good' : r.rating === 'bad' ? 'bad' : '—'}
         </span>
@@ -840,13 +1104,27 @@ async function viewRender(slug, id, displayName) {
     const r = await fetch(`/api/renders/${slug}/${id}/reasoning`);
     if (r.ok) reasoning = await r.text();
   } catch(e) { /* missing reasoning is fine */ }
+  // Pull note/grade/pdlSnapshot from cached meta (or refetch if absent)
+  let metaEntry = lastHistoryMeta.find(r => r.id === id);
+  if (!metaEntry) {
+    try {
+      const mr = await fetch(`/api/renders/${slug}`);
+      if (mr.ok) {
+        lastHistoryMeta = await mr.json();
+        metaEntry = lastHistoryMeta.find(r => r.id === id);
+      }
+    } catch(e) { /* ignore */ }
+  }
   const tab = addTab({
     kind: 'saved',
     renderId: id,
     name: displayName || id,
     html,
     reasoning,
-    view: 'render'
+    view: 'render',
+    note: metaEntry && typeof metaEntry.note === 'string' ? metaEntry.note : '',
+    grade: metaEntry && Number.isInteger(metaEntry.grade) ? metaEntry.grade : null,
+    pdlSnapshot: metaEntry && Array.isArray(metaEntry.pdlSnapshot) ? metaEntry.pdlSnapshot : null
   });
   setActiveTabId(tab.id);
 }
@@ -889,3 +1167,5 @@ updatePromptPreview();
 renderTabStrip();
 applyView('render');
 updateSaveButton();
+
+updateAssessButtonState();
