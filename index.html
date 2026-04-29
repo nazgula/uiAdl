@@ -68,15 +68,32 @@
   <div class="flex items-center gap-3">
     <!-- Project actions -->
     <div class="flex items-center gap-1">
-      <button onclick="saveToFile()"
+      <button onclick="newProject()"
+        class="text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition font-medium">
+        New
+      </button>
+      <button id="save-project-btn" onclick="saveToServer()"
         class="text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition font-medium">
         Save
       </button>
-      <label class="cursor-pointer text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition font-medium">
-        Load file
+      <div class="relative">
+        <button id="open-project-btn" onclick="toggleOpenMenu(event)"
+          class="text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition font-medium">
+          Open ▾
+        </button>
+        <div id="open-project-menu" class="hidden absolute right-0 mt-1 min-w-[200px] max-h-[320px] overflow-auto bg-white border border-gray-200 rounded-md shadow-lg z-20 text-xs"></div>
+      </div>
+      <span class="w-px h-5 bg-gray-200 mx-1"></span>
+      <button onclick="saveToFile()"
+        class="text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 transition font-medium">
+        Export
+      </button>
+      <label class="cursor-pointer text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 transition font-medium">
+        Import
         <input type="file" id="load-file" accept=".json" class="hidden" />
       </label>
     </div>
+    <span id="toast" class="hidden text-xs px-3 py-1 rounded bg-gray-800 text-white"></span>
     <!-- Model switcher -->
     <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
       <button id="btn-haiku" onclick="setModel('haiku')"

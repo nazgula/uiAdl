@@ -72,10 +72,20 @@ app.post('/api/generate', async (req, res) => {
 
 // ─── Projects: list ───────────────────────────────────────────
 app.get('/api/projects', (req, res) => {
-  const files = fs.readdirSync(PROJECTS_DIR)
+  if (!fs.existsSync(PROJECTS_DIR)) return res.json([]);
+  const out = fs.readdirSync(PROJECTS_DIR)
     .filter(f => f.endsWith('.json'))
-    .map(f => ({ name: f.replace('.json', ''), file: f }));
-  res.json(files);
+    .map(f => {
+      const slug = f.replace(/\.json$/, '');
+      let name = slug;
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, f), 'utf8'));
+        if (data && typeof data.name === 'string' && data.name.trim()) name = data.name;
+      } catch {}
+      return { slug, name };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  res.json(out);
 });
 
 // ─── Projects: load ───────────────────────────────────────────
