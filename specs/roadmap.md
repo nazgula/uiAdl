@@ -127,6 +127,56 @@ Use the captured render data to improve the generation prompt itself, instead of
 
 ---
 
+## Phase 2.6 — Project Save / New
+
+Small UX gap. Today the only Save downloads a JSON to the user's Downloads folder; there's no way to write to the on-disk `projects/` folder from the UI, and no "New project" reset. Prerequisite for creating eval cases.
+
+- [ ] **Save → server**: replace the current download-to-file Save with a button that POSTs to `/api/projects/:slug`. Slug derived from the project-name field. Block if name is empty. Toast on success.
+- [ ] **New project**: button next to Save. Clears project name, desc, decisions, prompt-text. Confirm if the workspace has unsaved state.
+- [ ] **Open**: dropdown listing what's in `projects/` (uses existing `GET /api/projects/:name` plus a small list endpoint). Click to load.
+- [ ] Keep the existing JSON file Export / Import flow as-is for sharing.
+- [ ] Playwright tests for save → reload → open round-trip and the New confirm.
+
+---
+
+## Phase 2.7 — Eval Harness
+
+Why this comes before any further prompt or pipeline work: per-render variance is larger than the effect of a typical prompt change. Without a fixed eval set, every iteration is a coin flip. The eval harness is the measurement layer; everything after this phase gets graded against it.
+
+- [ ] **Frozen cases** under `evals/cases/*.json` — 3–5 hand-picked PDLs covering different shapes (multi-tab flow with external boundaries, CRUD entity management, single-page form with hard validation gating)
+- [ ] **Rubric per case** under `evals/rubrics/*.json` — 5–8 yes/no checks each (e.g. "primary action visible without clicking", "external action uses mock boundary not real input", "all flows reachable")
+- [ ] **Run flow** — UI button or CLI to generate one render per case against the active prompt version, save under `evals/runs/{promptVersionId}/`
+- [ ] **Auto-grader** — Claude scores each render against its rubric, returns yes/no per check (separate from the existing per-render Assess UI)
+- [ ] **Manual override** — eval renders are openable in the existing Assess flow for human grading
+- [ ] **Compare view** — table of prompt versions × pass rates (overall + per-check), so "did that prompt change help" is a number
+- [ ] Baseline run on the current active prompt before any further changes
+
+---
+
+## Phase 2.8 — Enforcement Layer
+
+The "model rewrites all CSS regardless" lesson and the "model invents real file inputs" pattern can't be fixed with more prompt-tuning. What the model can't do, you don't have to ask it not to do.
+
+- [ ] **`wireframe.css` enforcement**: add `!important` only on the visual-vocabulary tokens — font-family, colors, `border-radius: 0`, `box-shadow: none`, basic border style. Layout properties stay overrideable.
+- [ ] **Server-side `<style>` whitelist**: post-process generated HTML before it reaches the iframe. Strip or warn on properties outside an allowed set (display, flex, grid, padding, margin, width, height, gap, etc.). Aesthetic tokens locked by the !important layer above.
+- [ ] **Mock-boundary convention**: define `.mock-boundary` modal with OK / Cancel pattern in `wireframe.css`. Update `default-prompt.txt` with the convention: any cross-app action (upload, fetch, third-party login, payment) must render as a labeled mock dialog, not a real `<input type=file>` or form submission.
+- [ ] **Visibility heuristic**: add to `default-prompt.txt` — primary actions and primary data are visible without interaction; collapsing is for secondary detail only.
+- [ ] Re-run Phase 2.7 eval harness; expect material pass-rate improvement on rubric checks targeting these issues.
+
+---
+
+## Phase 2.9 — PDL Clarify
+
+PDL ambiguity is upstream of prompt quality. If the PDL says "expandable cards," no prompt change makes the model show things expanded. Fix the input.
+
+- [ ] **Clarify button** next to Generate. Optional pre-generate call.
+- [ ] **One Claude tool-use call** that reads the active PDL, returns a structured list `[{ question, suggestedAnswers[], category }]`. Empty list = PDL is unambiguous.
+- [ ] **Review UI**: show questions; user picks/edits an answer per question. Accepted answers append as new decisions in the chosen category. Show diff before commit.
+- [ ] **No silent mutation** — answers always commit through the user's review.
+- [ ] Re-run eval harness; expect improvement on cases with ambiguous PDLs.
+
+---
+
 ## Phase 3 — Two-Round Generation
 
 Separate structure from style to fix the CSS-bloat problem.
