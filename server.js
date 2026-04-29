@@ -7,10 +7,29 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const PROJECTS_DIR = path.join(__dirname, 'projects');
 const RENDERS_DIR  = path.join(__dirname, 'renders');
+const PROMPTS_FILE = path.join(__dirname, 'prompts.json');
+const DEFAULT_PROMPT_FILE = path.join(__dirname, 'default-prompt.txt');
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
 if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR);
 if (!fs.existsSync(RENDERS_DIR))  fs.mkdirSync(RENDERS_DIR);
+
+function readPrompts() {
+  if (!fs.existsSync(PROMPTS_FILE)) {
+    const seedText = fs.readFileSync(DEFAULT_PROMPT_FILE, 'utf8');
+    const seedId = Date.now().toString();
+    const registry = {
+      versions: [{ id: seedId, createdAt: new Date().toISOString(), text: seedText, parentId: null, summary: 'Seeded from default-prompt.txt' }],
+      activeVersionId: seedId
+    };
+    fs.writeFileSync(PROMPTS_FILE, JSON.stringify(registry, null, 2));
+    return registry;
+  }
+  return JSON.parse(fs.readFileSync(PROMPTS_FILE, 'utf8'));
+}
+function writePrompts(registry) {
+  fs.writeFileSync(PROMPTS_FILE, JSON.stringify(registry, null, 2));
+}
 
 function rendersDir(project) {
   const dir = path.join(RENDERS_DIR, project.replace(/[^a-z0-9_-]/gi, '_'));
@@ -82,7 +101,7 @@ app.delete('/api/projects/:name', (req, res) => {
 
 // ─── Renders: save ────────────────────────────────────────────
 app.post('/api/renders/:project', (req, res) => {
-  const { html, reasoning, note, grade, pdlSnapshot } = req.body;
+  const { html, reasoning, note, grade, pdlSnapshot, promptVersionId } = req.body;
   if (!html) return res.status(400).json({ error: 'No html provided' });
   const id = Date.now().toString();
   const dir = rendersDir(req.params.project);
@@ -98,6 +117,7 @@ app.post('/api/renders/:project', (req, res) => {
       .filter(d => d && typeof d.text === 'string' && typeof d.category === 'string')
       .map(d => ({ text: d.text, category: d.category }));
   }
+  if (typeof promptVersionId === 'string' && promptVersionId) entry.promptVersionId = promptVersionId;
   const meta = readMeta(req.params.project);
   meta.unshift(entry);
   writeMeta(req.params.project, meta);
@@ -157,6 +177,63 @@ app.delete('/api/renders/:project/:id', (req, res) => {
   const meta = readMeta(req.params.project).filter(r => r.id !== req.params.id);
   writeMeta(req.params.project, meta);
   res.json({ ok: true });
+});
+
+// ─── Prompts: registry ────────────────────────────────────────
+app.get('/api/prompts', (req, res) => {
+  res.json(readPrompts());
+});
+
+app.get('/api/prompts/stats', (req, res) => {
+  const stats = {};
+  for (const file of fs.readdirSync(RENDERS_DIR)) {
+    const meta = path.join(RENDERS_DIR, file, 'meta.json');
+    if (!fs.existsSync(meta)) continue;
+    let rows;
+    try { rows = JSON.parse(fs.readFileSync(meta, 'utf8')); } catch { continue; }
+    for (const r of rows) {
+      if (!r.promptVersionId || !Number.isInteger(r.grade)) continue;
+      if (!stats[r.promptVersionId]) stats[r.promptVersionId] = { sum: 0, n: 0 };
+      stats[r.promptVersionId].sum += r.grade;
+      stats[r.promptVersionId].n += 1;
+    }
+  }
+  const out = {};
+  for (const [id, s] of Object.entries(stats)) out[id] = { avg: s.sum / s.n, n: s.n };
+  res.json(out);
+});
+
+app.get('/api/prompts/:id', (req, res) => {
+  const v = readPrompts().versions.find(v => v.id === req.params.id);
+  if (!v) return res.status(404).json({ error: 'Not found' });
+  res.json(v);
+});
+
+app.post('/api/prompts', (req, res) => {
+  const { text, parentId, summary, notes } = req.body;
+  if (typeof text !== 'string' || !text.trim()) return res.status(400).json({ error: 'text required' });
+  const registry = readPrompts();
+  const version = {
+    id: Date.now().toString(),
+    createdAt: new Date().toISOString(),
+    text,
+    parentId: parentId || null,
+    summary: typeof summary === 'string' ? summary : '',
+    notes: typeof notes === 'string' ? notes : ''
+  };
+  registry.versions.push(version);
+  registry.activeVersionId = version.id;
+  writePrompts(registry);
+  res.json(version);
+});
+
+app.put('/api/prompts/active', (req, res) => {
+  const { id } = req.body;
+  const registry = readPrompts();
+  if (!registry.versions.some(v => v.id === id)) return res.status(404).json({ error: 'Version not found' });
+  registry.activeVersionId = id;
+  writePrompts(registry);
+  res.json({ ok: true, activeVersionId: id });
 });
 
 app.listen(PORT, () => {

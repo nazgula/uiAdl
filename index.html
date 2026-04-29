@@ -149,8 +149,15 @@
     <div id="panel-prompt" class="hidden flex-col flex-1 p-4 gap-3">
       <div class="flex items-center justify-between">
         <label class="text-xs font-medium text-gray-600 uppercase tracking-wide">Generation prompt</label>
-        <button onclick="resetPrompt('gen')" class="text-xs text-gray-400 hover:text-indigo-500 transition">reset to default</button>
+        <button onclick="resetPrompt('gen')" class="text-xs text-gray-400 hover:text-indigo-500 transition">reset to active</button>
       </div>
+      <div class="flex items-center gap-2">
+        <select id="prompt-version-select" onchange="onPromptVersionChange(this.value)"
+          class="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-700"></select>
+        <button id="improve-prompt-btn" onclick="runImprovementConsult()"
+          class="text-xs px-3 py-1.5 rounded-md border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:border-gray-200 disabled:text-gray-300 disabled:cursor-not-allowed transition font-medium">Improve</button>
+      </div>
+      <p id="improve-helper" class="text-xs text-gray-400">&nbsp;</p>
       <textarea id="prompt-text" rows="6"
         class="text-sm border border-gray-200 rounded-lg p-3 resize-none flex-1"
         placeholder="Describe what to generate."
@@ -272,6 +279,51 @@
     <div id="preview-compare" class="hidden flex-1 flex bg-white"></div>
   </section>
 </main>
+
+<!-- ─── Improvement modal ──────────────────────────────────── -->
+<div id="improvement-modal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
+  <div class="bg-white rounded-lg w-[92vw] max-w-5xl h-[88vh] flex flex-col shadow-xl">
+    <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+      <h2 class="font-semibold text-gray-800">Prompt improvement proposal</h2>
+      <button onclick="closeImprovementModal()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+    </div>
+    <div class="flex-1 overflow-auto p-5 space-y-5">
+      <section>
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Diff (current → proposed)</h3>
+        <div id="improve-diff" class="text-xs font-mono bg-gray-50 border border-gray-200 rounded p-3 max-h-72 overflow-auto whitespace-pre-wrap"></div>
+      </section>
+      <section>
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Grade comparison</h3>
+        <div id="improve-grades" class="text-xs"></div>
+      </section>
+      <section>
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Limits notes</h3>
+        <div id="improve-limits" class="text-sm text-gray-700 bg-amber-50 border border-amber-200 rounded p-3 whitespace-pre-wrap"></div>
+      </section>
+      <section>
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Editable proposal</h3>
+        <textarea id="improve-proposal" class="w-full text-sm border border-gray-200 rounded p-3 font-mono" rows="10"></textarea>
+      </section>
+    </div>
+    <div class="px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
+      <button onclick="closeImprovementModal()"
+        class="text-sm px-4 py-1.5 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+      <button onclick="saveImprovedPrompt()"
+        class="text-sm px-4 py-1.5 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition">Save as new version</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .diff-line { padding: 1px 6px; }
+  .diff-same { color: #6b7280; }
+  .diff-added { background: #dcfce7; color: #166534; }
+  .diff-removed { background: #fee2e2; color: #991b1b; text-decoration: line-through; opacity: 0.85; }
+  .grade-row { display: grid; grid-template-columns: 1fr 60px 60px 1fr; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #f3f4f6; align-items: center; }
+  .grade-row.head { font-weight: 600; color: #6b7280; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; border-bottom: 1px solid #d1d5db; }
+  .grade-cell { text-align: center; }
+  .hist-pv { display:inline-block; font-size:10px; padding:0 5px; height:14px; line-height:14px; border-radius:7px; background:#f1f5f9; color:#475569; font-weight:600; }
+</style>
 
 <script src="/app.js"></script>
 </body>

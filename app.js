@@ -12,6 +12,12 @@ let activeTabId = null;
 let nextTabId = 1;
 let lastHistoryMeta = []; // cached meta from /api/renders for snapshot/note/grade lookups
 
+// Prompt versions registry (Phase 2.5)
+let prompts = [];                  // [{ id, createdAt, text, parentId, summary }]
+let activePromptVersionId = null;
+let promptStats = {};              // { [versionId]: { avg, n } }
+let pendingProposal = null;        // { proposedPrompt, grades[], limitsNotes, renders[] }
+
 function getActiveTab() { return tabs.find(t => t.id === activeTabId) || null; }
 function findTabByRenderId(renderId) { return tabs.find(t => t.renderId === renderId) || null; }
 function liveTab() { return tabs.find(t => t.kind === 'live') || null; }
@@ -35,51 +41,10 @@ const MODELS = {
 };
 
 // ─── Project serialization ────────────────────────────────────
-const DEFAULT_PROMPT = `Before writing HTML, plan the structure in a <reasoning> block:
-- Container type and main layout (panel, full-page, modal-driven)
-- Which tabs / pages / states exist and how navigation works between them
-- What data entities need sample values and what they look like
-- Interaction patterns: what triggers what, what shows/hides, what state is tracked
-
-<reasoning>
-[your structural plan here]
-</reasoning>
-
-Then immediately write the complete HTML.
-
----
-
-Generate a complete, interactive HTML wireframe based on these project decisions.
-
-Visual style — wireframe (Balsamiq-like):
-- Font: "Comic Sans MS", cursive
-- Colors: black, white, and grays only (#f4f4f4, #ddd, #aaa, #555, #111)
-- No gradients, no shadows, no border-radius, no icons, no images
-- Borders: solid 1-2px #aaa or #333
-- Buttons: plain bordered rectangles with text labels
-- Where an icon would appear, use a bracketed text label: [✕] [+] [≡] [▶]
-- Placeholder images/previews: gray rectangle (#ddd) with a centered label in #888
-- Inputs and selects: plain bordered boxes
-
-Wireframe CSS classes available — use these, do not redefine them:
-- Layout: .panel, .panel-header, .scroll-area
-- Navigation: .tab-bar, .tab, .tab.active
-- Content: .card, .card-header, .card-body
-- Controls: .btn, .btn-primary, .btn-block, .input, .select, .form-group
-- Special: .upload-area, .placeholder, .badge, .toast, .modal, .modal-overlay
-- States: .hidden, .active, .disabled, .empty-state, .loading
-- Data: .score-bar-wrap, .score-bar-fill, .check-item, .table
-
-Functional requirements:
-- Implement every ui element in the PDL as a visible component
-- Implement every flow as an interactive sequence. Flows with action gates must branch (success path and error/invalid path)
-- Every navigation target in the PDL must be reachable
-- Every element with an extended or alternate mode must be togglable
-- Use placeholder content for entities — fake names, sample data — sized to feel real
-- Do not fetch external URLs. Fully self-contained HTML, vanilla JS only
-- Do not redefine CSS classes listed above; use them as-is
-
-Return: the <reasoning> block followed immediately by the HTML. No markdown, no code fences.`;
+function getActivePromptText() {
+  const v = prompts.find(p => p.id === activePromptVersionId);
+  return v ? v.text : '';
+}
 
 function projectToJSON() {
   return {
@@ -95,7 +60,7 @@ function loadProjectData(data) {
   decisions = data.decisions || [];
   document.getElementById('project-name').value = project.name;
   document.getElementById('project-desc').value = project.desc;
-  document.getElementById('prompt-text').value = data.prompt || DEFAULT_PROMPT;
+  document.getElementById('prompt-text').value = data.prompt || getActivePromptText();
   autosave();
   renderDecisions();
   updateCostEstimate();
@@ -325,7 +290,7 @@ function updatePromptPreview() {
 
 function resetPrompt(which) {
   if (which === 'gen') {
-    document.getElementById('prompt-text').value = DEFAULT_PROMPT;
+    document.getElementById('prompt-text').value = getActivePromptText();
     updatePromptPreview();
   }
   autosave();
@@ -664,6 +629,15 @@ function setTabGrade(tabId, grade) {
     refreshAssessPopoverGrade();
   }
   updateAssessButtonState();
+  // Keep history-meta cache + Improve threshold in sync for saved renders.
+  if (t.kind === 'saved' && t.renderId && Array.isArray(lastHistoryMeta)) {
+    const row = lastHistoryMeta.find(r => r.id === t.renderId);
+    if (row) {
+      if (Number.isInteger(t.grade)) row.grade = t.grade;
+      else delete row.grade;
+    }
+    if (typeof updateImproveButton === 'function') updateImproveButton();
+  }
 }
 
 function cycleTabGrade(tabId, ev) {
@@ -896,7 +870,8 @@ async function generate() {
       view: 'render',
       note: '',
       grade: null,
-      pdlSnapshot
+      pdlSnapshot,
+      promptVersionId: activePromptVersionId
     });
     setActiveTabId(tab.id);
 
@@ -979,7 +954,8 @@ async function saveRender() {
         name: t.name,
         note: t.note || '',
         grade: Number.isInteger(t.grade) ? t.grade : null,
-        pdlSnapshot: Array.isArray(t.pdlSnapshot) ? t.pdlSnapshot : []
+        pdlSnapshot: Array.isArray(t.pdlSnapshot) ? t.pdlSnapshot : [],
+        promptVersionId: t.promptVersionId || null
       })
     });
     if (!res.ok) throw new Error('Save failed');
@@ -1030,11 +1006,14 @@ async function loadHistory() {
       const noteInd = r.note && r.note.trim()
         ? `<span class="hist-note" title="Has note">◆</span>`
         : `<span class="text-gray-200 text-xs" title="No note">◇</span>`;
+      const pvLabel = r.promptVersionId ? promptVersionLabel(r.promptVersionId) : '';
+      const pvBadge = pvLabel ? `<span class="hist-pv" title="Generated with ${escHtml(pvLabel)}">${escHtml(pvLabel)}</span>` : '';
       return `<div class="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50 transition group" data-render-id="${r.id}">
         <button onclick="viewRender('${slug}','${r.id}', '${safeLabel}')"
           class="flex-1 text-left text-sm text-gray-700 font-mono history-label">${escHtml(label)}</button>
         <button onclick="renderRenameStart('${slug}','${r.id}', this)" title="Rename"
           class="text-xs px-2 py-1 rounded border border-gray-200 hover:border-indigo-300 hover:text-indigo-500 transition text-gray-300 opacity-0 group-hover:opacity-100">✎</button>
+        ${pvBadge}
         ${gradeBadge}
         ${noteInd}
         <span class="${ratingClass} text-xs w-12 text-center">
@@ -1051,6 +1030,7 @@ async function loadHistory() {
       </div>`;
     }).join('');
   } catch(e) { /* server not running */ }
+  if (typeof updateImproveButton === 'function') updateImproveButton();
 }
 
 function renderRenameStart(slug, id, btn) {
@@ -1154,18 +1134,312 @@ async function deleteRender(slug, id) {
   loadHistory();
 }
 
+// ─── Prompt versions ──────────────────────────────────────────
+function promptVersionLabel(id) {
+  const idx = prompts.findIndex(p => p.id === id);
+  return idx === -1 ? '' : `v${idx + 1}`;
+}
+
+async function loadPromptRegistry() {
+  try {
+    const [regRes, statsRes] = await Promise.all([
+      fetch('/api/prompts'),
+      fetch('/api/prompts/stats')
+    ]);
+    const reg = await regRes.json();
+    prompts = reg.versions || [];
+    activePromptVersionId = reg.activeVersionId || null;
+    promptStats = statsRes.ok ? await statsRes.json() : {};
+    renderPromptVersionSelect();
+    updateImproveButton();
+    const ta = document.getElementById('prompt-text');
+    if (!ta.value) ta.value = getActivePromptText();
+    updatePromptPreview();
+  } catch(e) { /* server not running */ }
+}
+
+function renderPromptVersionSelect() {
+  const sel = document.getElementById('prompt-version-select');
+  if (!sel) return;
+  sel.innerHTML = prompts.map((v, i) => {
+    const label = `v${i + 1}`;
+    const stat = promptStats[v.id];
+    const statTxt = stat ? ` — avg ${stat.avg.toFixed(1)} (${stat.n})` : '';
+    const date = new Date(v.createdAt).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    return `<option value="${v.id}" ${v.id === activePromptVersionId ? 'selected' : ''}>${label} · ${date}${statTxt}</option>`;
+  }).join('');
+}
+
+async function onPromptVersionChange(id) {
+  if (!id || id === activePromptVersionId) return;
+  try {
+    const res = await fetch('/api/prompts/active', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    if (!res.ok) throw new Error('Failed to switch version');
+    activePromptVersionId = id;
+    document.getElementById('prompt-text').value = getActivePromptText();
+    updatePromptPreview();
+    autosave();
+  } catch(e) { showError(e.message); }
+}
+
+function gradedRendersForCurrentProject() {
+  return (lastHistoryMeta || []).filter(r => Number.isInteger(r.grade));
+}
+
+function updateImproveButton() {
+  const btn = document.getElementById('improve-prompt-btn');
+  const helper = document.getElementById('improve-helper');
+  if (!btn || !helper) return;
+  const n = gradedRendersForCurrentProject().length;
+  const need = 3;
+  if (n < need) {
+    btn.disabled = true;
+    helper.textContent = `Grade ${need - n} more saved render${need - n === 1 ? '' : 's'} to enable Improve.`;
+  } else {
+    btn.disabled = false;
+    helper.innerHTML = '&nbsp;';
+  }
+}
+
+// ─── Improvement consult ──────────────────────────────────────
+function buildConsultMessages(activePromptText, renders) {
+  const blocks = [];
+
+  blocks.push({ type: 'text', text:
+    '# Task: Improve a GENERIC wireframe-generation prompt\n\n' +
+    'You are improving a **project-agnostic** "Generation Prompt" that is used as a system-style instruction ' +
+    'for an HTML wireframe generator. This prompt is reused across MANY different projects. ' +
+    'At generation time, a separate per-project "PDL" (a list of decisions like flows, ui choices, constraints) ' +
+    'is appended to this prompt. The PDL is the project-specific part; the Generation Prompt itself must remain general.\n\n' +
+    '## Hard rules for the proposed prompt\n' +
+    '- It MUST be project-agnostic. Do NOT mention any specific project, feature, UI component, entity, or domain ' +
+      '(no "CV upload", no "Chrome extension", no "Search tab", no specific tab names or sample roles).\n' +
+    '- It MUST be a direct replacement for the current Generation Prompt in the same shape and role: ' +
+      'general guidance about how to plan, structure, and emit wireframe HTML from an unknown future PDL.\n' +
+    '- Improvements should be GENERAL RULES extracted from the evidence: e.g. "always make checkable/actionable affordances ' +
+      'visible without expanding cards", "explicitly distinguish navigation tabs from content tabs", ' +
+      '"when a flow has gating, define what the disabled state looks like", "validate that every PDL item is reachable in the output", etc.\n' +
+    '- Do not fold a specific project\'s PDL into the prompt body. The PDL belongs in the per-project input, not in the prompt.\n\n' +
+    '## How to use the evidence below\n' +
+    'You will be shown the CURRENT Generation Prompt, then several rendered outputs from one project, each with its ' +
+    'PDL snapshot, the model\'s reasoning, the user\'s grade (1–5), and the user\'s note. Use these as evidence to ' +
+    'identify recurring failure or success patterns and translate them into GENERAL rules in the new prompt.\n\n' +
+    'Evidence from multiple projects will accumulate over time; this run is one project but the rules you propose ' +
+    'must hold for any future project.'
+  });
+
+  blocks.push({ type: 'text', text: '## Current Generation Prompt (the thing to improve)\n\n' + activePromptText });
+
+  renders.forEach((r, i) => {
+    const pdlText = (r.pdlSnapshot || []).map(d => `- [${d.category}] ${d.text}`).join('\n') || '(none)';
+    blocks.push({ type: 'text', text:
+      `## Evidence — Render ${i + 1}: "${r.name}"\n` +
+      `User grade: ${r.grade}/5\n` +
+      `User note: ${r.note || '(none)'}\n\n` +
+      `Project PDL at generate time (project-specific — do NOT copy into the new prompt):\n${pdlText}\n\n` +
+      `Reasoning the model produced:\n${r.reasoning || '(none)'}`
+    });
+  });
+
+  blocks.push({ type: 'text', text:
+    '## Output\n\n' +
+    'Call the `submit_proposal` tool with your output. The tool schema enforces the required fields. ' +
+    `Provide one grade entry per render (renderIds: ${renders.map(r => `"${r.id}"`).join(', ')}). ` +
+    'Reread the hard rules above before writing the proposedPrompt.'
+  });
+
+  return [{ role: 'user', content: blocks }];
+}
+
+const CONSULT_TOOL = {
+  name: 'submit_proposal',
+  description: 'Submit the improved Generation Prompt, per-render grades, and limits notes.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      proposedPrompt: { type: 'string', description: 'Full text of the improved GENERIC Generation Prompt. Must be project-agnostic.' },
+      grades: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            renderId: { type: 'string' },
+            grade: { type: 'integer', minimum: 1, maximum: 5 },
+            rationale: { type: 'string' }
+          },
+          required: ['renderId', 'grade', 'rationale']
+        },
+        description: 'One entry per render shown.'
+      },
+      limitsNotes: { type: 'string', description: 'Patterns prompt wording alone cannot fix; suggest pipeline-level changes (tool use, multi-call generation, validation passes, clarifications). Be concrete.' }
+    },
+    required: ['proposedPrompt', 'grades', 'limitsNotes']
+  }
+};
+
+function parseConsultResponse(data) {
+  // Preferred path: tool_use block with structured input
+  const blocks = data.content || [];
+  const toolUse = blocks.find(b => b.type === 'tool_use' && b.name === 'submit_proposal');
+  if (toolUse && toolUse.input) return toolUse.input;
+  // Fallback: legacy plain-text JSON (kept for tests using the old shape)
+  const textBlock = blocks.find(b => b.type === 'text');
+  const text = textBlock ? textBlock.text : '';
+  let s = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  try { return JSON.parse(s); } catch {}
+  const start = s.indexOf('{');
+  const end = s.lastIndexOf('}');
+  if (start !== -1 && end !== -1) {
+    try { return JSON.parse(s.slice(start, end + 1)); } catch {}
+  }
+  console.error('Raw consult response:', data);
+  throw new Error('Consult response had no submit_proposal tool call and no parsable JSON');
+}
+
+async function runImprovementConsult() {
+  const slug = projectSlug();
+  if (!slug) { showError('Save the project first.'); return; }
+  await loadHistory();
+  const graded = gradedRendersForCurrentProject();
+  if (graded.length < 3) { showError('Need at least 3 graded renders.'); return; }
+
+  const btn = document.getElementById('improve-prompt-btn');
+  btn.disabled = true;
+  btn.textContent = 'Consulting…';
+  hideError();
+
+  try {
+    const renders = await Promise.all(graded.map(async (r) => {
+      let reasoning = '';
+      if (r.hasReasoning) {
+        try {
+          const rr = await fetch(`/api/renders/${slug}/${r.id}/reasoning`);
+          if (rr.ok) reasoning = await rr.text();
+        } catch {}
+      }
+      return {
+        id: r.id,
+        name: r.name || defaultRenderLabel(r),
+        grade: r.grade,
+        note: r.note || '',
+        pdlSnapshot: r.pdlSnapshot || [],
+        reasoning
+      };
+    }));
+
+    const messages = buildConsultMessages(getActivePromptText(), renders);
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: MODELS.sonnet.id,
+        max_tokens: 16384,
+        tools: [CONSULT_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_proposal' },
+        messages
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `API error ${res.status}`);
+    const parsed = parseConsultResponse(data);
+    pendingProposal = { ...parsed, renders };
+    openImprovementModal();
+  } catch(e) {
+    console.error('Consult failed:', e);
+    showError('Improve failed: ' + e.message);
+  } finally {
+    btn.textContent = 'Improve';
+    updateImproveButton();
+  }
+}
+
+function lineDiff(a, b) {
+  const A = a.split('\n'), B = b.split('\n');
+  const m = A.length, n = B.length;
+  const dp = Array.from({ length: m + 1 }, () => new Int32Array(n + 1));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = A[i - 1] === B[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  const out = [];
+  let i = m, j = n;
+  while (i > 0 && j > 0) {
+    if (A[i - 1] === B[j - 1]) { out.push({ type: 'same', text: A[i - 1] }); i--; j--; }
+    else if (dp[i - 1][j] >= dp[i][j - 1]) { out.push({ type: 'removed', text: A[i - 1] }); i--; }
+    else { out.push({ type: 'added', text: B[j - 1] }); j--; }
+  }
+  while (i > 0) { out.push({ type: 'removed', text: A[i - 1] }); i--; }
+  while (j > 0) { out.push({ type: 'added', text: B[j - 1] }); j--; }
+  return out.reverse();
+}
+
+function openImprovementModal() {
+  if (!pendingProposal) return;
+  const current = getActivePromptText();
+  const { proposedPrompt, grades, limitsNotes, renders } = pendingProposal;
+
+  const diffEl = document.getElementById('improve-diff');
+  diffEl.innerHTML = lineDiff(current, proposedPrompt || '')
+    .map(d => `<div class="diff-line diff-${d.type}">${d.type === 'added' ? '+ ' : d.type === 'removed' ? '- ' : '  '}${escHtml(d.text)}</div>`)
+    .join('');
+
+  const gradesEl = document.getElementById('improve-grades');
+  const gradeMap = {};
+  (grades || []).forEach(g => { gradeMap[g.renderId] = g; });
+  gradesEl.innerHTML =
+    `<div class="grade-row head"><div>Render</div><div class="grade-cell">User</div><div class="grade-cell">Claude</div><div>Rationale</div></div>` +
+    renders.map(r => {
+      const g = gradeMap[r.id] || {};
+      return `<div class="grade-row"><div>${escHtml(r.name)}</div><div class="grade-cell">${r.grade ?? '—'}</div><div class="grade-cell">${g.grade ?? '—'}</div><div>${escHtml(g.rationale || '')}</div></div>`;
+    }).join('');
+
+  document.getElementById('improve-limits').textContent = limitsNotes || '(none)';
+  document.getElementById('improve-proposal').value = proposedPrompt || '';
+  document.getElementById('improvement-modal').classList.remove('hidden');
+}
+
+function closeImprovementModal() {
+  document.getElementById('improvement-modal').classList.add('hidden');
+  pendingProposal = null;
+}
+
+async function saveImprovedPrompt() {
+  const text = document.getElementById('improve-proposal').value;
+  if (!text.trim()) { showError('Proposal is empty.'); return; }
+  const limitsNotes = (pendingProposal && pendingProposal.limitsNotes) || '';
+  const summary = limitsNotes ? limitsNotes.split('\n')[0].slice(0, 120) : '';
+  try {
+    const res = await fetch('/api/prompts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text, parentId: activePromptVersionId, summary, notes: limitsNotes })
+    });
+    if (!res.ok) throw new Error('Save failed');
+    const newVersion = await res.json();
+    prompts.push(newVersion);
+    activePromptVersionId = newVersion.id;
+    renderPromptVersionSelect();
+    document.getElementById('prompt-text').value = newVersion.text;
+    updatePromptPreview();
+    closeImprovementModal();
+  } catch(e) { showError(e.message); }
+}
+
 // ─── Init ─────────────────────────────────────────────────────
 const saved = localStorage.getItem('pdl_state');
 if (saved) {
-  try { loadProjectData(JSON.parse(saved)); } catch(e) {
-    document.getElementById('prompt-text').value = DEFAULT_PROMPT;
-  }
-} else {
-  document.getElementById('prompt-text').value = DEFAULT_PROMPT;
+  try { loadProjectData(JSON.parse(saved)); } catch(e) { /* fall through */ }
 }
+loadPromptRegistry();
 updatePromptPreview();
 renderTabStrip();
 applyView('render');
 updateSaveButton();
-
 updateAssessButtonState();
+// Pre-warm history so the Improve threshold check is accurate before user opens History
+loadHistory();

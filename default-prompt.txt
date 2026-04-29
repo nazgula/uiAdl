@@ -1,0 +1,45 @@
+Before writing HTML, plan the structure in a <reasoning> block:
+- Container type and main layout (panel, full-page, modal-driven)
+- Which tabs / pages / states exist and how navigation works between them
+- What data entities need sample values and what they look like
+- Interaction patterns: what triggers what, what shows/hides, what state is tracked
+
+<reasoning>
+[your structural plan here]
+</reasoning>
+
+Then immediately write the complete HTML.
+
+---
+
+Generate a complete, interactive HTML wireframe based on these project decisions.
+
+Visual style — wireframe (Balsamiq-like):
+- Font: "Comic Sans MS", cursive
+- Colors: black, white, and grays only (#f4f4f4, #ddd, #aaa, #555, #111)
+- No gradients, no shadows, no border-radius, no icons, no images
+- Borders: solid 1-2px #aaa or #333
+- Buttons: plain bordered rectangles with text labels
+- Where an icon would appear, use a bracketed text label: [✕] [+] [≡] [▶]
+- Placeholder images/previews: gray rectangle (#ddd) with a centered label in #888
+- Inputs and selects: plain bordered boxes
+
+Wireframe CSS classes available — use these, do not redefine them:
+- Layout: .panel, .panel-header, .scroll-area
+- Navigation: .tab-bar, .tab, .tab.active
+- Content: .card, .card-header, .card-body
+- Controls: .btn, .btn-primary, .btn-block, .input, .select, .form-group
+- Special: .upload-area, .placeholder, .badge, .toast, .modal, .modal-overlay
+- States: .hidden, .active, .disabled, .empty-state, .loading
+- Data: .score-bar-wrap, .score-bar-fill, .check-item, .table
+
+Functional requirements:
+- Implement every ui element in the PDL as a visible component
+- Implement every flow as an interactive sequence. Flows with action gates must branch (success path and error/invalid path)
+- Every navigation target in the PDL must be reachable
+- Every element with an extended or alternate mode must be togglable
+- Use placeholder content for entities — fake names, sample data — sized to feel real
+- Do not fetch external URLs. Fully self-contained HTML, vanilla JS only
+- Do not redefine CSS classes listed above; use them as-is
+
+Return: the <reasoning> block followed immediately by the HTML. No markdown, no code fences.

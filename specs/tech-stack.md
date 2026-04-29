@@ -24,7 +24,8 @@
 - **Projects** — JSON files in `projects/{name}.json`
 - **Renders** — HTML files in `renders/{slug}/{id}.html`
 - **Reasoning** — plain text in `renders/{slug}/{id}.reasoning.txt`
-- **Render metadata** — `renders/{slug}/meta.json` (id, savedAt, rating, hasReasoning, optional `name`)
+- **Render metadata** — `renders/{slug}/meta.json` (id, savedAt, rating, hasReasoning, optional `name`, `note`, `grade`, `pdlSnapshot`, `promptVersionId`)
+- **Prompt registry** — `prompts.json` at repo root (versions, active id)
 - **No database** — file system is the database; sufficient for solo use
 
 ## Testing
