@@ -1208,24 +1208,55 @@ function updateImproveButton() {
 // ─── Improvement consult ──────────────────────────────────────
 function buildConsultMessages(activePromptText, renders) {
   const blocks = [];
-  blocks.push({ type: 'text', text: '## Current Generation Prompt\n\n' + activePromptText });
+
+  blocks.push({ type: 'text', text:
+    '# Task: Improve a GENERIC wireframe-generation prompt\n\n' +
+    'You are improving a **project-agnostic** "Generation Prompt" that is used as a system-style instruction ' +
+    'for an HTML wireframe generator. This prompt is reused across MANY different projects. ' +
+    'At generation time, a separate per-project "PDL" (a list of decisions like flows, ui choices, constraints) ' +
+    'is appended to this prompt. The PDL is the project-specific part; the Generation Prompt itself must remain general.\n\n' +
+    '## Hard rules for the proposed prompt\n' +
+    '- It MUST be project-agnostic. Do NOT mention any specific project, feature, UI component, entity, or domain ' +
+      '(no "CV upload", no "Chrome extension", no "Search tab", no specific tab names or sample roles).\n' +
+    '- It MUST be a direct replacement for the current Generation Prompt in the same shape and role: ' +
+      'general guidance about how to plan, structure, and emit wireframe HTML from an unknown future PDL.\n' +
+    '- Improvements should be GENERAL RULES extracted from the evidence: e.g. "always make checkable/actionable affordances ' +
+      'visible without expanding cards", "explicitly distinguish navigation tabs from content tabs", ' +
+      '"when a flow has gating, define what the disabled state looks like", "validate that every PDL item is reachable in the output", etc.\n' +
+    '- Do not fold a specific project\'s PDL into the prompt body. The PDL belongs in the per-project input, not in the prompt.\n\n' +
+    '## How to use the evidence below\n' +
+    'You will be shown the CURRENT Generation Prompt, then several rendered outputs from one project, each with its ' +
+    'PDL snapshot, the model\'s reasoning, the user\'s grade (1–5), and the user\'s note. Use these as evidence to ' +
+    'identify recurring failure or success patterns and translate them into GENERAL rules in the new prompt.\n\n' +
+    'Evidence from multiple projects will accumulate over time; this run is one project but the rules you propose ' +
+    'must hold for any future project.'
+  });
+
+  blocks.push({ type: 'text', text: '## Current Generation Prompt (the thing to improve)\n\n' + activePromptText });
+
   renders.forEach((r, i) => {
     const pdlText = (r.pdlSnapshot || []).map(d => `- [${d.category}] ${d.text}`).join('\n') || '(none)';
     blocks.push({ type: 'text', text:
-      `## Render ${i + 1}: "${r.name}"\n` +
+      `## Evidence — Render ${i + 1}: "${r.name}"\n` +
       `User grade: ${r.grade}/5\n` +
       `User note: ${r.note || '(none)'}\n\n` +
-      `Active PDL at generate time:\n${pdlText}\n\n` +
+      `Project PDL at generate time (project-specific — do NOT copy into the new prompt):\n${pdlText}\n\n` +
       `Reasoning the model produced:\n${r.reasoning || '(none)'}`
     });
   });
+
   blocks.push({ type: 'text', text:
-    'Output a single JSON object (no prose, no code fences) with exactly these keys:\n' +
-    '- "proposedPrompt": string — full text of the improved Generation Prompt.\n' +
-    '- "grades": array of { "renderId": string, "grade": int 1–5, "rationale": string }, one per render above (renderIds ' +
-      renders.map(r => `"${r.id}"`).join(', ') + ').\n' +
-    '- "limitsNotes": string — short paragraph on patterns the prompt alone cannot fix (vague PDL items, structural problems suggesting tool use or pipeline changes).'
+    '## Output format\n\n' +
+    'Return a single JSON object (no prose around it, no code fences) with exactly these keys:\n\n' +
+    '- "proposedPrompt": string — the full text of the improved GENERIC Generation Prompt. Project-agnostic. ' +
+      'Reread the hard rules above before writing this.\n' +
+    '- "grades": array of { "renderId": string, "grade": int 1–5, "rationale": string }, one per render shown ' +
+      `above (renderIds: ${renders.map(r => `"${r.id}"`).join(', ')}).\n` +
+    '- "limitsNotes": string — patterns you noticed that prompt wording alone cannot fix. Focus on things that suggest ' +
+      'pipeline-level changes (tool use, multi-call generation, validation passes, clarification questions to the user ' +
+      'before generation, etc.). This is one of the most valuable outputs — be concrete.'
   });
+
   return [{ role: 'user', content: blocks }];
 }
 
@@ -1350,14 +1381,13 @@ function closeImprovementModal() {
 async function saveImprovedPrompt() {
   const text = document.getElementById('improve-proposal').value;
   if (!text.trim()) { showError('Proposal is empty.'); return; }
-  const summary = pendingProposal && pendingProposal.limitsNotes
-    ? pendingProposal.limitsNotes.split('\n')[0].slice(0, 120)
-    : '';
+  const limitsNotes = (pendingProposal && pendingProposal.limitsNotes) || '';
+  const summary = limitsNotes ? limitsNotes.split('\n')[0].slice(0, 120) : '';
   try {
     const res = await fetch('/api/prompts', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text, parentId: activePromptVersionId, summary })
+      body: JSON.stringify({ text, parentId: activePromptVersionId, summary, notes: limitsNotes })
     });
     if (!res.ok) throw new Error('Save failed');
     const newVersion = await res.json();

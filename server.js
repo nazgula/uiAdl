@@ -210,7 +210,7 @@ app.get('/api/prompts/:id', (req, res) => {
 });
 
 app.post('/api/prompts', (req, res) => {
-  const { text, parentId, summary } = req.body;
+  const { text, parentId, summary, notes } = req.body;
   if (typeof text !== 'string' || !text.trim()) return res.status(400).json({ error: 'text required' });
   const registry = readPrompts();
   const version = {
@@ -218,7 +218,8 @@ app.post('/api/prompts', (req, res) => {
     createdAt: new Date().toISOString(),
     text,
     parentId: parentId || null,
-    summary: typeof summary === 'string' ? summary : ''
+    summary: typeof summary === 'string' ? summary : '',
+    notes: typeof notes === 'string' ? notes : ''
   };
   registry.versions.push(version);
   registry.activeVersionId = version.id;
