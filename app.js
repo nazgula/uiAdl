@@ -1246,21 +1246,49 @@ function buildConsultMessages(activePromptText, renders) {
   });
 
   blocks.push({ type: 'text', text:
-    '## Output format\n\n' +
-    'Return a single JSON object (no prose around it, no code fences) with exactly these keys:\n\n' +
-    '- "proposedPrompt": string — the full text of the improved GENERIC Generation Prompt. Project-agnostic. ' +
-      'Reread the hard rules above before writing this.\n' +
-    '- "grades": array of { "renderId": string, "grade": int 1–5, "rationale": string }, one per render shown ' +
-      `above (renderIds: ${renders.map(r => `"${r.id}"`).join(', ')}).\n` +
-    '- "limitsNotes": string — patterns you noticed that prompt wording alone cannot fix. Focus on things that suggest ' +
-      'pipeline-level changes (tool use, multi-call generation, validation passes, clarification questions to the user ' +
-      'before generation, etc.). This is one of the most valuable outputs — be concrete.'
+    '## Output\n\n' +
+    'Call the `submit_proposal` tool with your output. The tool schema enforces the required fields. ' +
+    `Provide one grade entry per render (renderIds: ${renders.map(r => `"${r.id}"`).join(', ')}). ` +
+    'Reread the hard rules above before writing the proposedPrompt.'
   });
 
   return [{ role: 'user', content: blocks }];
 }
 
-function parseConsultResponse(text) {
+const CONSULT_TOOL = {
+  name: 'submit_proposal',
+  description: 'Submit the improved Generation Prompt, per-render grades, and limits notes.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      proposedPrompt: { type: 'string', description: 'Full text of the improved GENERIC Generation Prompt. Must be project-agnostic.' },
+      grades: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            renderId: { type: 'string' },
+            grade: { type: 'integer', minimum: 1, maximum: 5 },
+            rationale: { type: 'string' }
+          },
+          required: ['renderId', 'grade', 'rationale']
+        },
+        description: 'One entry per render shown.'
+      },
+      limitsNotes: { type: 'string', description: 'Patterns prompt wording alone cannot fix; suggest pipeline-level changes (tool use, multi-call generation, validation passes, clarifications). Be concrete.' }
+    },
+    required: ['proposedPrompt', 'grades', 'limitsNotes']
+  }
+};
+
+function parseConsultResponse(data) {
+  // Preferred path: tool_use block with structured input
+  const blocks = data.content || [];
+  const toolUse = blocks.find(b => b.type === 'tool_use' && b.name === 'submit_proposal');
+  if (toolUse && toolUse.input) return toolUse.input;
+  // Fallback: legacy plain-text JSON (kept for tests using the old shape)
+  const textBlock = blocks.find(b => b.type === 'text');
+  const text = textBlock ? textBlock.text : '';
   let s = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
   try { return JSON.parse(s); } catch {}
   const start = s.indexOf('{');
@@ -1268,7 +1296,8 @@ function parseConsultResponse(text) {
   if (start !== -1 && end !== -1) {
     try { return JSON.parse(s.slice(start, end + 1)); } catch {}
   }
-  throw new Error('Could not parse consult response as JSON');
+  console.error('Raw consult response:', data);
+  throw new Error('Consult response had no submit_proposal tool call and no parsable JSON');
 }
 
 async function runImprovementConsult() {
@@ -1309,13 +1338,14 @@ async function runImprovementConsult() {
       body: JSON.stringify({
         model: MODELS.sonnet.id,
         max_tokens: 16384,
+        tools: [CONSULT_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_proposal' },
         messages
       })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `API error ${res.status}`);
-    const rawText = data.content?.[0]?.text || '';
-    const parsed = parseConsultResponse(rawText);
+    const parsed = parseConsultResponse(data);
     pendingProposal = { ...parsed, renders };
     openImprovementModal();
   } catch(e) {
