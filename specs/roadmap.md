@@ -131,11 +131,11 @@ Use the captured render data to improve the generation prompt itself, instead of
 
 Small UX gap. Today the only Save downloads a JSON to the user's Downloads folder; there's no way to write to the on-disk `projects/` folder from the UI, and no "New project" reset. Prerequisite for creating eval cases.
 
-- [ ] **Save → server**: replace the current download-to-file Save with a button that POSTs to `/api/projects/:slug`. Slug derived from the project-name field. Block if name is empty. Toast on success.
-- [ ] **New project**: button next to Save. Clears project name, desc, decisions, prompt-text. Confirm if the workspace has unsaved state.
-- [ ] **Open**: dropdown listing what's in `projects/` (uses existing `GET /api/projects/:name` plus a small list endpoint). Click to load.
-- [ ] Keep the existing JSON file Export / Import flow as-is for sharing.
-- [ ] Playwright tests for save → reload → open round-trip and the New confirm.
+- [x] **Save → server**: replace the current download-to-file Save with a button that POSTs to `/api/projects/:slug`. Slug derived from the project-name field. Block if name is empty. Toast on success.
+- [x] **New project**: button next to Save. Clears project name, desc, decisions, prompt-text. Confirm if the workspace has unsaved state.
+- [x] **Open**: dropdown listing what's in `projects/` (uses existing `GET /api/projects/:name` plus a small list endpoint). Click to load.
+- [x] Keep the existing JSON file Export / Import flow as-is for sharing.
+- [x] Playwright tests for save → reload → open round-trip and the New confirm.
 
 ---
 
