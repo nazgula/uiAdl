@@ -18,6 +18,13 @@ Express app with two responsibilities: proxy the Anthropic API (so the API key n
 - `GET /api/renders/:project/:id/reasoning` — returns the saved reasoning text.
 - `PATCH /api/renders/:project/:id` — updates `rating` / `note` / `grade` / `name` in `meta.json`. Empty-string `note` clears the field; `grade: null` clears it; valid grades are integers 1–5. `pdlSnapshot` is **write-once** at save time and ignored by PATCH. `name` empty string deletes the field (falls back to default label).
 - `DELETE /api/renders/:project/:id` — deletes both `{id}.html` and `{id}.reasoning.txt` and removes the row from `meta.json`.
+- `GET /api/prompts` — returns the prompt registry `{ versions: [...], activeVersionId }`.
+- `POST /api/prompts` — body `{ text, parentId?, summary? }`. Server assigns `id` and `createdAt`, appends to `versions[]`, sets `activeVersionId` to the new id. Versions are immutable once written.
+- `GET /api/prompts/:id` — returns one version object.
+- `PUT /api/prompts/active` — body `{ id }`. Updates `activeVersionId` only.
+- `GET /api/prompts/stats` — returns `{ [versionId]: { avg, n } }` aggregated from all projects' `meta.json` rows by `promptVersionId`.
+
+`POST /api/renders/:project` and `meta.json` rows accept an optional `promptVersionId` linking the saved render to the prompt version that produced it. Older meta rows without this field render normally (no badge).
 
 ## Frontend layout
 
@@ -32,9 +39,14 @@ editingId            // prevents toggleDecision firing during inline edit
 model                // 'haiku' | 'sonnet'
 activeTab            // left-panel tab: 'decisions' | 'prompt'
 
+// Prompt registry (Phase 2.5)
+prompts[]            // [{ id, createdAt, text, parentId, summary }]
+activePromptVersionId
+promptStats          // { [versionId]: { avg, n } }
+
 // Render tabs (Phase 1.1, extended in Phase 2)
 tabs[]               // [{ id, kind, renderId, name, html, reasoning, view, compareChecked,
-                     //    note, grade, pdlSnapshot }]
+                     //    note, grade, pdlSnapshot, promptVersionId }]
 activeTabId          // currently focused render tab
 compareMode          // true while N-column compare view is active
 ```
@@ -132,4 +144,23 @@ The file is a base layer the model can override. See `roadmap.md` "Deferred" for
 
 Older project files may contain a `refinePrompt` field or decisions with `category: "entity"` — both are ignored by the current UI. No migration step rewrites them.
 
+The per-project `prompt` is a workspace-scoped override edited via the Gen Prompt textarea. The **prompt registry** (`prompts.json` at repo root) is the source of truth for *versioned* generation prompts; the per-project field is not version-tracked. Renders carry `promptVersionId` linking back to whichever registry version was active at generate time.
+
 Stored at `projects/{slug}.json` where slug is the project name lowercased with `[^a-z0-9_-]` replaced by `_`. The same slug rule is used for `renders/{slug}/`.
+
+## Prompt registry
+
+`prompts.json` at the repo root (gitignored). Shape:
+
+```json
+{
+  "versions": [
+    { "id": "...", "createdAt": "...", "text": "...", "parentId": "...|null", "summary": "..." }
+  ],
+  "activeVersionId": "..."
+}
+```
+
+Seeded on first server start with one version equal to the in-code `DEFAULT_PROMPT`. Versions are append-only and immutable; switching the active version is a separate operation (`PUT /api/prompts/active`).
+
+The **Improvement Consult** is a Claude tool-use call that bundles the active prompt + N graded renders (PDL snapshot + reasoning + note + grade per render, no HTML) and asks the model to propose a new prompt. The response surfaces in a review modal showing a line-level diff, per-render grade comparison (user vs model with rationale), limits notes, and an editable proposal textarea. Save creates a new version (`POST /api/prompts`) and makes it active; Cancel discards. Threshold to enable: ≥3 graded renders for the active project.

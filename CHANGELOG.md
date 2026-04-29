@@ -2,6 +2,15 @@
 
 Notable changes per phase. See `specs/roadmap.md` for the full plan.
 
+## 2026-04-29 — Phase 2.5: Prompt Improvement Consult
+
+- New on-disk **prompt registry** (`prompts.json`) is the source of truth for versioned generation prompts. Seeded with the in-code `DEFAULT_PROMPT` on first run; versions are append-only and immutable. New endpoints: `GET /api/prompts`, `POST /api/prompts`, `GET /api/prompts/:id`, `PUT /api/prompts/active`, `GET /api/prompts/stats`.
+- The Gen Prompt tab gains a **version dropdown** showing each version with its average user-grade (e.g. `v3 — avg 3.6 (8)`). Switching versions makes that one active and updates the textarea.
+- New **Improve generation prompt** flow: with ≥3 graded renders for the active project, click Improve to send a tool-use consult bundle (active prompt + each graded render's PDL snapshot + reasoning + note + grade, no HTML). A review modal opens with a line-level diff, per-render grade comparison, limits notes, and an editable proposal. Save creates a new version (active immediately); Cancel discards.
+- Renders now carry **`promptVersionId`** linking back to the version that produced them. History rows show a small version badge; the per-version average grade in the dropdown is computed across all projects' meta.
+- Consult call uses the Anthropic tool-use API (not freeform JSON) for reliable structured output, and now bundles instructions to keep the proposed prompt generic across projects rather than over-fitting to one project's renders.
+- 4 new Playwright tests (25 total, all green) cover the threshold gate, modal contents, save/cancel flow, version switching, and render→version linkage.
+
 ## 2026-04-28 — Phase 2: Render Notes & Grading
 
 - Saved renders now carry a free-text **note** and a **1–5 grade** alongside the existing rating. Both persist in `meta.json` and round-trip through the `POST` and `PATCH /api/renders/:project/:id` endpoints.

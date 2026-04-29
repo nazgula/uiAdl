@@ -120,10 +120,10 @@ Capture per-render feedback so Phase 2.5 has real data to work from.
 
 Use the captured render data to improve the generation prompt itself, instead of guessing.
 
-- [ ] **"Improve generation prompt"** action bundles: current generation prompt + N saved renders (each with PDL snapshot + reasoning + notes + grade, no HTML)
-- [ ] One-shot call to Claude; returns suggested edits to the generation prompt
-- [ ] User reviews and accepts/rejects the edits before they take effect
-- [ ] Defer chat/iteration unless one-shot proves insufficient
+- [x] **"Improve generation prompt"** action bundles: current generation prompt + N saved renders (each with PDL snapshot + reasoning + notes + grade, no HTML)
+- [x] One-shot call to Claude; returns suggested edits to the generation prompt
+- [x] User reviews and accepts/rejects the edits before they take effect
+- [x] Defer chat/iteration unless one-shot proves insufficient
 
 ---
 
