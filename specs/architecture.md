@@ -11,7 +11,8 @@ Single-page app with a thin Express backend. No build step. The frontend talks t
 Express app with two responsibilities: proxy the Anthropic API (so the API key never reaches the browser) and CRUD the on-disk project / render data.
 
 - `POST /api/generate` — Anthropic proxy. Forwards the request body to the Messages API and returns the raw response. API key read from `.env`.
-- `GET /api/projects/:name`, `POST /api/projects/:name`, `DELETE /api/projects/:name` — JSON files in `projects/`.
+- `GET /api/projects` — returns `[{ slug, name }]` for everything in `projects/`, sorted by display name. `name` falls back to slug when the file lacks a `name` field.
+- `GET /api/projects/:name`, `POST /api/projects/:name`, `DELETE /api/projects/:name` — JSON files in `projects/`. `POST` accepts the slug in the URL path; the frontend `Save` button (Phase 2.6) lowercases the project-name input and replaces non-`[a-z0-9_-]` to derive it.
 - `POST /api/renders/:project` — saves a render. Accepts `{ html, reasoning, note?, grade?, pdlSnapshot? }`. Stores `{id}.html` and `{id}.reasoning.txt` in `renders/{slug}/`. Updates `meta.json` (id, savedAt, rating, hasReasoning, optional `note`, `grade`, `pdlSnapshot`).
 - `GET /api/renders/:project` — returns the meta array for a project.
 - `GET /api/renders/:project/:id` — returns the saved HTML.
@@ -49,6 +50,12 @@ tabs[]               // [{ id, kind, renderId, name, html, reasoning, view, comp
                      //    note, grade, pdlSnapshot, promptVersionId }]
 activeTabId          // currently focused render tab
 compareMode          // true while N-column compare view is active
+
+// Workspace dirty tracking (Phase 2.6)
+dirty                // true iff there have been edits since the last successful
+                     // server-save (saveToServer) or Open (openProject). Set via
+                     // markDirty() which is called from autosave() on every edit.
+                     // Cleared on successful save / open / New.
 ```
 
 `note` is a free-text string (empty when absent), `grade` is an integer 1–5 or `null`, `pdlSnapshot` is `[{ text, category }]` of decisions active at generate time (or `null` for renders saved before Phase 2). The snapshot is captured by `generate()` and is write-once on save — there is no edit path.
@@ -99,6 +106,17 @@ Each tab carries a `note`, `grade` (1–5), and `pdlSnapshot`. Access is via a s
 The popover writes to the tab object immediately; for saved tabs, note edits debounce-PATCH and grade changes PATCH on click. Closing the popover (outside-click or Esc) flushes any pending PATCH. History rows show a numeric grade badge and a small note indicator.
 
 **Single source of truth**: tab object's `note` / `grade`. Tab-strip grade badge, toolbar Assess button label, split column Assess button, and the Assess popover all read from and write to the same fields.
+
+### Project actions (Phase 2.6)
+
+Header row contains five project-action controls: `New | Save | Open ▾ | Export | Import`.
+
+- **New** — clears name/desc/decisions/prompt-text and closes all render tabs. Honors the `dirty` flag: shows `confirm("Discard unsaved changes?")` only when dirty.
+- **Save** — `POST /api/projects/:slug` where `:slug` is derived from the project-name input via the same lowercase + `[^a-z0-9_-]→_` rule used elsewhere. Empty name → toast "Name a project before saving" and no request. Silent overwrite. Toast "Saved" on success. Clears `dirty`.
+- **Open ▾** — dropdown built from `GET /api/projects`. Fetches on open (not page load) so the list reflects recent saves. Click → `openProject(slug)` which fetches `GET /api/projects/:name`, replaces workspace, clears `dirty`. Same `dirty`-confirm gate as `New`.
+- **Export / Import** — unchanged file-based JSON download / upload flow. Used for sharing; not server-backed. Imports leave the workspace dirty (no implicit server save).
+
+The `dirty` flag is the single source of truth for the unsaved-state confirm. It is set by every project-side edit (decisions, project-name, desc, per-project prompt textarea) via `autosave() → markDirty()` and cleared by `saveToServer`, `openProject`, and `newProject`. Render-side state changes (tab grade, tab note, view switching) do not flip `dirty` — they belong to the render layer, not the project file.
 
 ### Reasoning block
 

@@ -12,6 +12,12 @@ let activeTabId = null;
 let nextTabId = 1;
 let lastHistoryMeta = []; // cached meta from /api/renders for snapshot/note/grade lookups
 
+// Workspace dirty flag — true when there are edits since the last server-save or Open.
+// Drives the confirm() gate in newProject() and openProject().
+let dirty = false;
+function markDirty() { dirty = true; }
+function clearDirty() { dirty = false; }
+
 // Prompt versions registry (Phase 2.5)
 let prompts = [];                  // [{ id, createdAt, text, parentId, summary }]
 let activePromptVersionId = null;
@@ -72,6 +78,7 @@ function autosave() {
   project.name = document.getElementById('project-name').value;
   project.desc = document.getElementById('project-desc').value;
   localStorage.setItem('pdl_state', JSON.stringify(projectToJSON()));
+  markDirty();
 }
 
 // ─── Save to file ─────────────────────────────────────────────
@@ -84,6 +91,122 @@ function saveToFile() {
   a.download = name + '.json';
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+// ─── Toast ────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 1800);
+}
+
+// ─── Save → server ────────────────────────────────────────────
+async function saveToServer() {
+  const name = document.getElementById('project-name').value.trim();
+  if (!name) { showToast('Name a project before saving'); return; }
+  const slug = name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+  try {
+    const res = await fetch(`/api/projects/${encodeURIComponent(slug)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(projectToJSON())
+    });
+    if (!res.ok) throw new Error(`Save failed (${res.status})`);
+    clearDirty();
+    showToast('Saved');
+  } catch (e) {
+    showToast('Save failed');
+    showError(e.message);
+  }
+}
+
+// ─── New project ──────────────────────────────────────────────
+function resetWorkspace() {
+  // Close any open render tabs (ephemeral; not persisted)
+  tabs = [];
+  activeTabId = null;
+  document.getElementById('project-name').value = '';
+  document.getElementById('project-desc').value = '';
+  document.getElementById('prompt-text').value = getActivePromptText();
+  decisions = [];
+  project = { name: '', desc: '' };
+  localStorage.setItem('pdl_state', JSON.stringify(projectToJSON()));
+  renderDecisions();
+  updateCostEstimate();
+  updatePromptPreview();
+  renderTabStrip();
+  renderActiveTab();
+}
+
+function newProject() {
+  if (dirty && !confirm('Discard unsaved changes?')) return;
+  resetWorkspace();
+  clearDirty();
+}
+
+// ─── Open project ─────────────────────────────────────────────
+async function openProject(slug) {
+  if (dirty && !confirm('Discard unsaved changes?')) return;
+  try {
+    const res = await fetch(`/api/projects/${encodeURIComponent(slug)}`);
+    if (!res.ok) throw new Error(`Load failed (${res.status})`);
+    const data = await res.json();
+    tabs = [];
+    activeTabId = null;
+    loadProjectData(data);
+    renderTabStrip();
+    renderActiveTab();
+    clearDirty();
+    showToast('Opened');
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+async function toggleOpenMenu(ev) {
+  if (ev) ev.stopPropagation();
+  const menu = document.getElementById('open-project-menu');
+  if (!menu.classList.contains('hidden')) { menu.classList.add('hidden'); return; }
+  menu.innerHTML = '<div class="px-3 py-2 text-gray-400">Loading…</div>';
+  menu.classList.remove('hidden');
+  setTimeout(() => document.addEventListener('mousedown', closeOpenMenuOutside), 0);
+  try {
+    const res = await fetch('/api/projects');
+    const items = res.ok ? await res.json() : [];
+    if (!items.length) {
+      menu.innerHTML = '<div class="px-3 py-2 text-gray-400">No projects yet.</div>';
+      return;
+    }
+    menu.innerHTML = items.map(p =>
+      `<button type="button" data-slug="${escHtml(p.slug)}"
+        class="block w-full text-left px-3 py-2 hover:bg-indigo-50 text-gray-700">
+        ${escHtml(p.name)}
+      </button>`
+    ).join('');
+    menu.querySelectorAll('button[data-slug]').forEach(b => {
+      b.addEventListener('click', () => {
+        const slug = b.dataset.slug;
+        menu.classList.add('hidden');
+        document.removeEventListener('mousedown', closeOpenMenuOutside);
+        openProject(slug);
+      });
+    });
+  } catch (e) {
+    menu.innerHTML = '<div class="px-3 py-2 text-red-400">Load failed.</div>';
+  }
+}
+
+function closeOpenMenuOutside(e) {
+  const menu = document.getElementById('open-project-menu');
+  const btn = document.getElementById('open-project-btn');
+  if (!menu) return;
+  if (menu.contains(e.target) || (btn && btn.contains(e.target))) return;
+  menu.classList.add('hidden');
+  document.removeEventListener('mousedown', closeOpenMenuOutside);
 }
 
 // ─── Load from file ───────────────────────────────────────────

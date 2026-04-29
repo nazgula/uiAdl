@@ -2,6 +2,15 @@
 
 Notable changes per phase. See `specs/roadmap.md` for the full plan.
 
+## 2026-04-29 — Phase 2.6: Project Save / New
+
+- **Save → server**: header `Save` now writes the project to `projects/<slug>.json` via `POST /api/projects/:slug` (slug derived from the project-name input). Empty name blocks the save with a toast. Silent overwrite on existing slugs.
+- **New** button clears name/desc/decisions/prompt-text and closes render tabs. Honors a workspace `dirty` flag — the discard-changes confirm only fires when there are edits since the last server-save / Open.
+- **Open ▾** dropdown lists everything in `projects/`, fetched on click so it reflects recent saves. Selecting a project replaces the workspace (with the same dirty-confirm gate).
+- File-based **Export** / **Import** flow preserved unchanged for sharing; the old "Save" / "Load file" labels were renamed.
+- New endpoint: `GET /api/projects` returns `[{ slug, name }]` sorted by display name. Existing `POST /api/projects/:name` and `GET /api/projects/:name` are reused.
+- 4 new Playwright tests (29 total, all green) cover the save → reload → open round-trip, the empty-name guard, and the dirty/clean New gating.
+
 ## 2026-04-29 — Phase 2.5: Prompt Improvement Consult
 
 - New on-disk **prompt registry** (`prompts.json`) is the source of truth for versioned generation prompts. Seeded with the in-code `DEFAULT_PROMPT` on first run; versions are append-only and immutable. New endpoints: `GET /api/prompts`, `POST /api/prompts`, `GET /api/prompts/:id`, `PUT /api/prompts/active`, `GET /api/prompts/stats`.
